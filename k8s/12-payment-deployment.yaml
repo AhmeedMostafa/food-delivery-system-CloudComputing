@@ -1,0 +1,48 @@
+# ====== 12-payment-deployment.yaml ======
+# Deploys the payment-service (port 3004).
+# Reads DB connection + other config from the food-config ConfigMap.
+# Uses imagePullPolicy: IfNotPresent because the image is built locally via minikube.
+#
+# Apply: kubectl apply -f k8s/12-payment-deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  labels:
+    app: payment-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+        - name: payment-service
+          image: food-delivery/payment-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3004
+          envFrom:
+            - configMapRef:
+                name: food-config
+          env:
+            - name: PORT
+              value: "3004"
+          # Quick health check so K8s knows when the container is ready
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3004
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3004
+            initialDelaySeconds: 15
+            periodSeconds: 20

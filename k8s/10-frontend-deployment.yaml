@@ -1,0 +1,24 @@
+# ====== 10-frontend-deployment.yaml ======
+# 1 replica of the nginx-based frontend (SPA + API reverse proxy).
+# Apply: kubectl apply -f k8s/10-frontend-deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: food-delivery/frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80

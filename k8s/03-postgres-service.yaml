@@ -1,0 +1,17 @@
+# ====== 03-postgres-service.yaml ======
+# ClusterIP service for postgres -- only reachable inside the cluster.
+# Services connect using hostname 'postgres-service' (matching DB_HOST in food-config).
+# Apply: kubectl apply -f k8s/03-postgres-service.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+spec:
+  selector:
+    app: postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+  type: ClusterIP

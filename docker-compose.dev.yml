@@ -1,0 +1,152 @@
+version: '3.9'
+
+# ====== Development Compose ======
+# Hot-reload enabled via nodemon. Uses host-mounted source code.
+# Run: docker compose -f docker-compose.dev.yml up --build
+# Separate volume (pgdata_dev) so dev/test/prod don't clobber each other.
+
+name: food-delivery-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-food_delivery}
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - '5433:5432'
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - food_net_dev
+
+  user-service:
+    build: ./services/user-service
+    # nodemon watches for file changes and restarts automatically
+    command: npx nodemon src/index.js
+    volumes:
+      - ./services/user-service/src:/app/src
+      - ./services/user-service/node_modules:/app/node_modules
+    environment:
+      PORT: 3001
+      NODE_ENV: development
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-food_delivery}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-in-prod}
+    ports:
+      - '3001:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - food_net_dev
+
+  restaurant-service:
+    build: ./services/restaurant-service
+    command: npx nodemon src/index.js
+    volumes:
+      - ./services/restaurant-service/src:/app/src
+      - ./services/restaurant-service/node_modules:/app/node_modules
+    environment:
+      PORT: 3002
+      NODE_ENV: development
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-food_delivery}
+    ports:
+      - '3002:3002'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - food_net_dev
+
+  order-service:
+    build: ./services/order-service
+    command: npx nodemon src/index.js
+    volumes:
+      - ./services/order-service/src:/app/src
+      - ./services/order-service/node_modules:/app/node_modules
+    environment:
+      PORT: 3003
+      NODE_ENV: development
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-food_delivery}
+      USER_SERVICE_URL: http://user-service:3001
+      RESTAURANT_SERVICE_URL: http://restaurant-service:3002
+      PAYMENT_SERVICE_URL: http://payment-service:3004
+    ports:
+      - '3003:3003'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - food_net_dev
+
+  payment-service:
+    build: ./services/payment-service
+    command: npx nodemon src/index.js
+    volumes:
+      - ./services/payment-service/src:/app/src
+      - ./services/payment-service/node_modules:/app/node_modules
+    environment:
+      PORT: 3004
+      NODE_ENV: development
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-food_delivery}
+    ports:
+      - '3004:3004'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - food_net_dev
+
+  frontend:
+    build:
+      context: ./frontend
+      target: builder
+    # Vite dev server -- passes --host so it binds 0.0.0.0 inside the container
+    command: npm run dev -- --host 0.0.0.0
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+    environment:
+      VITE_API_BASE_USER: http://user-service:3001
+      VITE_API_BASE_RESTAURANT: http://restaurant-service:3002
+      VITE_API_BASE_ORDER: http://order-service:3003
+      VITE_API_BASE_PAYMENT: http://payment-service:3004
+    ports:
+      - '5173:5173'
+    depends_on:
+      - user-service
+      - restaurant-service
+      - order-service
+      - payment-service
+    networks:
+      - food_net_dev
+
+volumes:
+  pgdata_dev:
+
+networks:
+  food_net_dev:
+    driver: bridge

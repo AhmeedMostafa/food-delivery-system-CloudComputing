@@ -1,0 +1,136 @@
+version: '3.9'
+
+# ====== Test Compose ======
+# Uses different ports so it can run alongside dev without conflict.
+# Each service just runs its placeholder test script.
+# TODO: replace the placeholder scripts with actual test suites (jest, supertest, etc.)
+#
+# Run: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
+
+name: food-delivery-test
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Use a separate database so test data doesn't pollute dev
+      POSTGRES_DB: food_delivery_test
+    volumes:
+      - pgdata_test:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - '5442:5432'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - food_net_test
+
+  user-service:
+    build: ./services/user-service
+    command: npm test
+    environment:
+      PORT: 4001
+      NODE_ENV: test
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: food_delivery_test
+      JWT_SECRET: ${JWT_SECRET:-test-jwt-secret}
+    ports:
+      - '4001:4001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - food_net_test
+
+  restaurant-service:
+    build: ./services/restaurant-service
+    command: npm test
+    environment:
+      PORT: 4002
+      NODE_ENV: test
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: food_delivery_test
+    ports:
+      - '4002:4002'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - food_net_test
+
+  order-service:
+    build: ./services/order-service
+    command: npm test
+    environment:
+      PORT: 4003
+      NODE_ENV: test
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: food_delivery_test
+      USER_SERVICE_URL: http://user-service:4001
+      RESTAURANT_SERVICE_URL: http://restaurant-service:4002
+      PAYMENT_SERVICE_URL: http://payment-service:4004
+    ports:
+      - '4003:4003'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - food_net_test
+
+  payment-service:
+    build: ./services/payment-service
+    command: npm test
+    environment:
+      PORT: 4004
+      NODE_ENV: test
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: food_delivery_test
+    ports:
+      - '4004:4004'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - food_net_test
+
+  frontend:
+    build: ./frontend
+    command: npm run dev -- --host 0.0.0.0 --port 4173
+    environment:
+      VITE_API_BASE_USER: http://localhost:4001
+      VITE_API_BASE_RESTAURANT: http://localhost:4002
+      VITE_API_BASE_ORDER: http://localhost:4003
+      VITE_API_BASE_PAYMENT: http://localhost:4004
+    ports:
+      - '4173:4173'
+    depends_on:
+      - user-service
+      - restaurant-service
+      - order-service
+      - payment-service
+    networks:
+      - food_net_test
+
+volumes:
+  pgdata_test:
+
+networks:
+  food_net_test:
+    driver: bridge

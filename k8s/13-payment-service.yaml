@@ -1,0 +1,21 @@
+# ====== 13-payment-service.yaml ======
+# ClusterIP service for payment-service.
+# Internal only -- nginx proxies /api/payments to this service.
+# Port 3004 matches the container EXPOSE.
+#
+# Apply: kubectl apply -f k8s/13-payment-service.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  labels:
+    app: payment-service
+spec:
+  type: ClusterIP
+  selector:
+    app: payment-service
+  ports:
+    - port: 3004
+      targetPort: 3004
+      protocol: TCP

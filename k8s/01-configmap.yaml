@@ -1,0 +1,160 @@
+# ====== 01-configmap.yaml ======
+# Creates two ConfigMaps:
+#   food-config        -- shared env vars for all backend services
+#   postgres-init-sql  -- the init.sql mounted into postgres on first start
+#
+# Apply: kubectl apply -f k8s/01-configmap.yaml
+#
+# Note: in production, sensitive values like DB_PASSWORD and JWT_SECRET
+# should be in a Kubernetes Secret. Combined here for demo simplicity.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: food-config
+data:
+  DB_HOST: postgres-service
+  DB_PORT: "5432"
+  DB_USER: postgres
+  DB_PASSWORD: postgres
+  DB_NAME: food_delivery
+  JWT_SECRET: demo-secret-change-in-prod
+  USER_SERVICE_URL: http://user-service:3001
+  RESTAURANT_SERVICE_URL: http://restaurant-service:3002
+  PAYMENT_SERVICE_URL: http://payment-service:3004
+  NODE_ENV: production
+---
+# Second ConfigMap: embeds init.sql so postgres runs it on first start.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-sql
+data:
+  init.sql: |
+    -- ============================================================
+    -- Food Delivery System -- Database Initialization
+    -- Runs automatically when the postgres container first starts.
+    -- Creates 4 schemas (one per microservice) + seeds sample data.
+    -- ============================================================
+
+    -- ====== Schemas ======
+    CREATE SCHEMA IF NOT EXISTS user_svc;
+    CREATE SCHEMA IF NOT EXISTS restaurant_svc;
+    CREATE SCHEMA IF NOT EXISTS order_svc;
+    CREATE SCHEMA IF NOT EXISTS payment_svc;
+
+    -- ====== user_svc tables ======
+    CREATE TABLE IF NOT EXISTS user_svc.users (
+      id            SERIAL PRIMARY KEY,
+      name          VARCHAR(100) NOT NULL,
+      email         VARCHAR(255) NOT NULL UNIQUE,
+      password      TEXT NOT NULL,
+      phone         VARCHAR(20),
+      address       TEXT,
+      role          VARCHAR(30) NOT NULL DEFAULT 'customer',
+      restaurant_id INTEGER,
+      created_at    TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- ====== restaurant_svc tables ======
+    CREATE TABLE IF NOT EXISTS restaurant_svc.restaurants (
+      id          SERIAL PRIMARY KEY,
+      name        VARCHAR(150) NOT NULL,
+      cuisine     VARCHAR(100),
+      address     TEXT,
+      image_url   TEXT,
+      rating      NUMERIC(2,1) DEFAULT 4.0,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS restaurant_svc.menu_items (
+      id              SERIAL PRIMARY KEY,
+      restaurant_id   INTEGER NOT NULL REFERENCES restaurant_svc.restaurants(id) ON DELETE CASCADE,
+      name            VARCHAR(150) NOT NULL,
+      description     TEXT,
+      price           NUMERIC(10,2) NOT NULL,
+      image_url       TEXT,
+      is_available    BOOLEAN DEFAULT TRUE,
+      created_at      TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- ====== order_svc tables ======
+    CREATE TABLE IF NOT EXISTS order_svc.orders (
+      id               SERIAL PRIMARY KEY,
+      user_id          INTEGER NOT NULL,
+      restaurant_id    INTEGER NOT NULL,
+      status           VARCHAR(30) NOT NULL DEFAULT 'PLACED',
+      total_price      NUMERIC(10,2) NOT NULL,
+      delivery_address TEXT,
+      driver_id        INTEGER,
+      created_at       TIMESTAMPTZ DEFAULT NOW(),
+      updated_at       TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS order_svc.order_items (
+      id            SERIAL PRIMARY KEY,
+      order_id      INTEGER NOT NULL REFERENCES order_svc.orders(id) ON DELETE CASCADE,
+      menu_item_id  INTEGER NOT NULL,
+      name          VARCHAR(150) NOT NULL,
+      price         NUMERIC(10,2) NOT NULL,
+      qty           INTEGER NOT NULL CHECK (qty > 0)
+    );
+
+    -- ====== payment_svc tables ======
+    CREATE TABLE IF NOT EXISTS payment_svc.transactions (
+      id         SERIAL PRIMARY KEY,
+      order_id   INTEGER NOT NULL,
+      user_id    INTEGER NOT NULL,
+      amount     NUMERIC(10,2) NOT NULL,
+      method     VARCHAR(30) NOT NULL DEFAULT 'CREDIT_CARD',
+      status     VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- ====== Seed data: 4 restaurants ======
+    INSERT INTO restaurant_svc.restaurants (name, cuisine, address, image_url, rating) VALUES
+      ('Burger Palace', 'American', '123 Main St, New York, NY', 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600', 4.5),
+      ('Sushi Haven', 'Japanese', '456 Oak Ave, San Francisco, CA', 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600', 4.7),
+      ('Pizza Roma', 'Italian', '789 Elm Rd, Chicago, IL', 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600', 4.3),
+      ('Spice Garden', 'Indian', '321 Curry Lane, Houston, TX', 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=600', 4.6)
+    ON CONFLICT DO NOTHING;
+
+    -- ====== Seed: Burger Palace menu ======
+    INSERT INTO restaurant_svc.menu_items (restaurant_id, name, description, price, image_url) VALUES
+      (1, 'Classic Burger', 'Juicy beef patty with lettuce, tomato, and our special sauce', 12.99, 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400'),
+      (1, 'Cheese Fries', 'Crispy fries topped with melted cheddar cheese', 5.99, 'https://images.unsplash.com/photo-1576107232684-1279f390859f?w=400'),
+      (1, 'Milkshake', 'Thick and creamy vanilla milkshake', 4.99, 'https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=400')
+    ON CONFLICT DO NOTHING;
+
+    -- ====== Seed: Sushi Haven menu ======
+    INSERT INTO restaurant_svc.menu_items (restaurant_id, name, description, price, image_url) VALUES
+      (2, 'Salmon Roll', 'Fresh salmon with cucumber and avocado (8 pieces)', 14.99, 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=400'),
+      (2, 'Edamame', 'Steamed salted soybeans -- great starter', 4.50, 'https://images.unsplash.com/photo-1564489563601-c53cfc451e93?w=400'),
+      (2, 'Miso Soup', 'Traditional Japanese miso with tofu and seaweed', 3.50, 'https://images.unsplash.com/photo-1547592180-85f173990554?w=400')
+    ON CONFLICT DO NOTHING;
+
+    -- ====== Seed: Pizza Roma menu ======
+    INSERT INTO restaurant_svc.menu_items (restaurant_id, name, description, price, image_url) VALUES
+      (3, 'Margherita Pizza', 'San Marzano tomato sauce, fresh mozzarella, basil', 13.99, 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400'),
+      (3, 'Tiramisu', 'Classic Italian dessert with espresso and mascarpone', 6.99, 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=400')
+    ON CONFLICT DO NOTHING;
+
+    -- ====== Seed: Spice Garden menu ======
+    INSERT INTO restaurant_svc.menu_items (restaurant_id, name, description, price, image_url) VALUES
+      (4, 'Butter Chicken', 'Tender chicken in a rich tomato-cream sauce, served with naan', 15.99, 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=400'),
+      (4, 'Vegetable Biryani', 'Aromatic basmati rice cooked with seasonal vegetables and spices', 11.99, 'https://images.unsplash.com/photo-1563379091339-03246963d51e?w=400')
+    ON CONFLICT DO NOTHING;
+
+    -- ====== Seed: Restaurant owner test accounts ======
+    INSERT INTO user_svc.users (name, email, password, role, restaurant_id) VALUES
+      ('Burger Palace Owner', 'burger@owner.com', '$2a$10$Ye9rifhvU1kUCqJs0Tp3euMy5K1mLoXCoxiBT.CRSePso6YEFt9VG', 'restaurant_owner', 1),
+      ('Sushi Haven Owner',   'sushi@owner.com',  '$2a$10$Ye9rifhvU1kUCqJs0Tp3euMy5K1mLoXCoxiBT.CRSePso6YEFt9VG', 'restaurant_owner', 2),
+      ('Pizza Roma Owner',    'pizza@owner.com',  '$2a$10$Ye9rifhvU1kUCqJs0Tp3euMy5K1mLoXCoxiBT.CRSePso6YEFt9VG', 'restaurant_owner', 3),
+      ('Spice Garden Owner',  'spice@owner.com',  '$2a$10$Ye9rifhvU1kUCqJs0Tp3euMy5K1mLoXCoxiBT.CRSePso6YEFt9VG', 'restaurant_owner', 4)
+    ON CONFLICT DO NOTHING;
+
+    -- ====== Seed: Delivery driver test accounts ======
+    INSERT INTO user_svc.users (name, email, password, role) VALUES
+      ('Driver One', 'driver1@test.com', '$2a$10$8K1p/a0dclxPxkNhmFbEeOFxPQ1uFKqJQE5h9N8qhDWTTJmFU13wu', 'delivery_driver'),
+      ('Driver Two', 'driver2@test.com', '$2a$10$8K1p/a0dclxPxkNhmFbEeOFxPQ1uFKqJQE5h9N8qhDWTTJmFU13wu', 'delivery_driver')
+    ON CONFLICT DO NOTHING;

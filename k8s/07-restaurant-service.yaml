@@ -1,0 +1,16 @@
+# ====== 07-restaurant-service.yaml ======
+# ClusterIP service for restaurant-service.
+# Apply: kubectl apply -f k8s/07-restaurant-service.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: restaurant-service
+spec:
+  selector:
+    app: restaurant-service
+  ports:
+    - protocol: TCP
+      port: 3002
+      targetPort: 3002
+  type: ClusterIP

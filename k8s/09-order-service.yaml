@@ -1,0 +1,16 @@
+# ====== 09-order-service.yaml ======
+# ClusterIP service for order-service.
+# Apply: kubectl apply -f k8s/09-order-service.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+spec:
+  selector:
+    app: order-service
+  ports:
+    - protocol: TCP
+      port: 3003
+      targetPort: 3003
+  type: ClusterIP

@@ -1,0 +1,21 @@
+# ====== 11-frontend-service.yaml ======
+# NodePort service for the frontend.
+# NodePort 30080 is the host port you use to reach the app.
+#
+# Apply: kubectl apply -f k8s/11-frontend-service.yaml
+# Access: minikube service frontend-service
+#      OR: http://$(minikube ip):30080
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+spec:
+  selector:
+    app: frontend
+  type: NodePort
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+      nodePort: 30080
