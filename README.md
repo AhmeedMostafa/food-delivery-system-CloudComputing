@@ -14,25 +14,26 @@ A full-stack food delivery application built with Node.js microservices, React, 
                         +--------v---------+
                         |   Frontend (80)  |  React 18 + Vite 5, served by nginx
                         |  nginx reverse   |  Proxies /api/* to backend services
-                        +--+---+---+-------+
-                           |   |   |
-               +-----------+   |   +-----------+
-               |               |               |
-    +----------v---+  +--------v-----+  +------v------+
-    | user-service |  | restaurant-  |  | order-      |
-    |   (3001)     |  | service      |  | service     |
-    |              |  | (3002)       |  | (3003)      |
-    +----+----+----+  +------+-------+  +------+------+
-         |    |               |                |
-         +----+---------------+----------------+
-                              |
-                    +---------v---------+
-                    |   PostgreSQL 16   |
-                    |  3 schemas:       |
-                    |  user_svc         |
-                    |  restaurant_svc   |
-                    |  order_svc        |
-                    +-------------------+
+                        +--+---+---+---+---+
+                           |   |   |   |
+                +----------+   |   |   +-----------+
+                |              |   |               |
+     +----------v---+  +-------v-+ | +-------v------+  +--------------+
+     | user-service |  | restaur-| | | order-       |  | payment-     |
+     |   (3001)     |  | ant-svc | | | service      |  | service      |
+     |              |  | (3002)  | | | (3003)       |  | (3004)       |
+     +----+----+----+  +------+--+ | +-------+------+  +-------+------+
+          |    |               |   |         |                 |
+          +----+---------------+---+---------+-----------------+
+                               |
+                     +---------v---------+
+                     |   PostgreSQL 16   |
+                     |  4 schemas:       |
+                     |  user_svc         |
+                     |  restaurant_svc   |
+                     |  order_svc        |
+                     |  payment_svc      |
+                     +-------------------+
 ```
 
 ---
@@ -43,9 +44,9 @@ A full-stack food delivery application built with Node.js microservices, React, 
 |---------------|-----------------------------------------|
 | Backend       | Node.js 20 + Express 4 (ES modules)     |
 | Frontend      | React 18 + Vite 5 + plain CSS           |
-| Database      | PostgreSQL 16 (one instance, 3 schemas) |
+| Database      | PostgreSQL 16 (one instance, 4 schemas) |
 | Auth          | JWT (jsonwebtoken) + bcryptjs           |
-| Inter-service | axios                                   |
+| Inter-service | axios (REST)                            |
 | Containers    | Docker + Docker Compose v2              |
 | Orchestration | Kubernetes (Minikube)                   |
 
@@ -59,17 +60,19 @@ food-delivery-system/
 ├── .gitattributes          # enforces LF line endings
 ├── .env.example            # copy to .env and fill in secrets
 ├── README.md
+├── TECHNICAL_ARCHITECTURE.md # Deep-dive into design decisions
 ├── database/
-│   └── init.sql            # schema + seed data (4 restaurants, 9 menu items)
+│   └── init.sql            # schema + seed data (4 restaurants, 9 menu items, drivers)
 ├── services/
-│   ├── user-service/       # port 3001 -- registration, login, JWT
+│   ├── user-service/       # port 3001 -- registration, login, JWT, driver lookups
 │   ├── restaurant-service/ # port 3002 -- restaurants + menus
-│   └── order-service/      # port 3003 -- orders (calls other services)
+│   ├── order-service/      # port 3003 -- orders (calls other services)
+│   └── payment-service/    # port 3004 -- mock payment processing
 ├── frontend/               # React SPA served by nginx in production
 ├── docker-compose.dev.yml  # hot-reload, ports exposed
 ├── docker-compose.test.yml # separate DB, test ports
 ├── docker-compose.prod.yml # no source mounts, restart policies
-└── k8s/                    # 11 Kubernetes manifests
+└── k8s/                    # Kubernetes manifests (Deployments, Services, ConfigMaps)
 ```
 
 ---
@@ -138,6 +141,7 @@ eval $(minikube docker-env)
 docker build -t food-delivery/user-service:latest       ./services/user-service
 docker build -t food-delivery/restaurant-service:latest ./services/restaurant-service
 docker build -t food-delivery/order-service:latest      ./services/order-service
+docker build -t food-delivery/payment-service:latest    ./services/payment-service
 docker build -t food-delivery/frontend:latest           ./frontend
 
 # 4. Deploy everything
@@ -158,11 +162,12 @@ minikube service frontend-service
 
 | Method | Path                | Auth | Description                                                  |
 |--------|---------------------|------|--------------------------------------------------------------|
-| POST   | /api/users/register | No   | Register (role: customer or restaurant_owner); returns user + JWT |
+| POST   | /api/users/register | No   | Register (customer, restaurant_owner, or delivery_driver)    |
 | POST   | /api/users/login    | No   | Login; returns user + JWT (includes role + restaurant_id)    |
-| GET    | /api/users/me       | Yes  | Get current user profile (includes role, restaurant_id)      |
+| GET    | /api/users/me       | Yes  | Get current user profile                                     |
 | PUT    | /api/users/me       | Yes  | Update profile (name, email, phone, address, password)       |
-| GET    | /api/users/:id      | No   | Internal lookup (used by order-service)                      |
+| GET    | /api/users/drivers  | No   | Internal: List all delivery drivers                          |
+| GET    | /api/users/:id      | No   | Internal: Lookup user by ID (used by order-service)          |
 | GET    | /health             | No   | Health check                                                 |
 
 ### Restaurant Service (port 3002)
@@ -182,29 +187,25 @@ minikube service frontend-service
 
 ### Order Service (port 3003)
 
-| Method | Path                              | Auth | Description                              |
-|--------|-----------------------------------|------|------------------------------------------|
-| POST   | /api/orders                       | No   | Place order (includes delivery_address)  |
-| GET    | /api/orders/:id                   | No   | Get single order                         |
-| GET    | /api/orders/user/:userId          | No   | List customer's orders                   |
-| GET    | /api/orders/restaurant/:restId    | No   | List orders for a restaurant (dashboard) |
-| PATCH  | /api/orders/:id/status            | No   | Update order status                      |
-| GET    | /health                           | No   | Health check                             |
+| Method | Path                              | Auth | Description                                     |
+|--------|-----------------------------------|------|-------------------------------------------------|
+| POST   | /api/orders                       | No   | Place order; triggers mock payment              |
+| GET    | /api/orders/:id                   | No   | Get single order + items                        |
+| GET    | /api/orders/user/:userId          | No   | List customer's order history                   |
+| GET    | /api/orders/restaurant/:restId    | No   | List orders for a restaurant dashboard          |
+| GET    | /api/orders/driver/:driverId      | No   | List orders assigned to a driver                |
+| PATCH  | /api/orders/:id/status            | No   | Update status (PLACED -> DELIVERED)             |
+| PATCH  | /api/orders/:id/assign            | No   | Assign a delivery driver to the order           |
+| GET    | /health                           | No   | Health check                                    |
 
----
+### Payment Service (port 3004)
 
-## Test Accounts
-
-The database seed includes pre-built restaurant owner accounts for easy testing:
-
-| Email              | Password  | Role              | Restaurant     |
-|--------------------|-----------|-------------------|----------------|
-| burger@owner.com   | owner123  | restaurant_owner  | Burger Palace  |
-| sushi@owner.com    | owner123  | restaurant_owner  | Sushi Haven    |
-| pizza@owner.com    | owner123  | restaurant_owner  | Pizza Roma     |
-| spice@owner.com    | owner123  | restaurant_owner  | Spice Garden   |
-
-Register a new account to try the customer flow, or register with "I'm a Restaurant Owner" to create a new restaurant.
+| Method | Path                         | Auth | Description                                     |
+|--------|------------------------------|------|-------------------------------------------------|
+| POST   | /api/payments                | No   | Record a new payment (called by order-service)  |
+| GET    | /api/payments/order/:orderId | No   | Get payment status for a specific order         |
+| GET    | /api/payments/user/:userId   | No   | List payment history for a user                 |
+| GET    | /health                      | No   | Health check                                    |
 
 ---
 
@@ -212,10 +213,27 @@ Register a new account to try the customer flow, or register with "I'm a Restaur
 
 | Role               | Access                                                              |
 |--------------------|---------------------------------------------------------------------|
-| `customer`         | Home, Restaurant Detail, Cart, My Orders, Profile                  |
-| `restaurant_owner` | Home, Restaurant Detail, Dashboard (menu + orders), Profile        |
+| `customer`         | Browse restaurants, place orders, view order history, profile      |
+| `restaurant_owner` | Manage menu, view/accept orders, assign drivers, profile           |
+| `delivery_driver`  | View assigned orders, update order status (Out for Delivery, etc.)  |
 
 The JWT token includes `role` and `restaurant_id` fields. The frontend uses these to show/hide nav links and enforce route guards.
+
+---
+
+## Test Accounts
+
+The database seed includes pre-built accounts for easy testing:
+
+### Restaurant Owners (Password: `owner123`)
+*   `burger@owner.com` (Burger Palace)
+*   `sushi@owner.com` (Sushi Haven)
+*   `pizza@owner.com` (Pizza Roma)
+*   `spice@owner.com` (Spice Garden)
+
+### Delivery Drivers (Password: `driver123`)
+*   `driver1@test.com`
+*   `driver2@test.com`
 
 ---
 
@@ -234,6 +252,7 @@ The JWT token includes `role` and `restaurant_id` fields. The frontend uses thes
 | JWT_SECRET             | dev-jwt-secret-change-in-prod  | JWT signing secret                 |
 | USER_SERVICE_URL       | http://user-service:3001       | Internal URL for user-service      |
 | RESTAURANT_SERVICE_URL | http://restaurant-service:3002 | Internal URL for restaurant-service|
+| PAYMENT_SERVICE_URL    | http://payment-service:3004    | Internal URL for payment-service   |
 | NODE_ENV               | development                    | Node environment                   |
 
 ---
