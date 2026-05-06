@@ -6,7 +6,7 @@ version: '3.9'
 
 services:
   postgres:
-    image: postgres:16-alpine
+    build: ./database
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
@@ -14,7 +14,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-food_delivery}
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s

@@ -30,9 +30,18 @@ spec:
           envFrom:
             - configMapRef:
                 name: food-config
+            - secretRef:
+                name: food-secrets
           env:
             - name: PORT
               value: "3004"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
           # Quick health check so K8s knows when the container is ready
           readinessProbe:
             httpGet:

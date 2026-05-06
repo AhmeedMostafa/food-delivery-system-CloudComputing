@@ -31,14 +31,21 @@ spec:
                   key: DB_USER
             - name: POSTGRES_PASSWORD
               valueFrom:
-                configMapKeyRef:
-                  name: food-config
+                secretKeyRef:
+                  name: food-secrets
                   key: DB_PASSWORD
             - name: POSTGRES_DB
               valueFrom:
                 configMapKeyRef:
                   name: food-config
                   key: DB_NAME
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
           volumeMounts:
             - name: pgdata
               mountPath: /var/lib/postgresql/data

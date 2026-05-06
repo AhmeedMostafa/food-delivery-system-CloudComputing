@@ -16,9 +16,7 @@ data:
   DB_HOST: postgres-service
   DB_PORT: "5432"
   DB_USER: postgres
-  DB_PASSWORD: postgres
   DB_NAME: food_delivery
-  JWT_SECRET: demo-secret-change-in-prod
   USER_SERVICE_URL: http://user-service:3001
   RESTAURANT_SERVICE_URL: http://restaurant-service:3002
   PAYMENT_SERVICE_URL: http://payment-service:3004

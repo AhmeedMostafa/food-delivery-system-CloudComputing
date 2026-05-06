@@ -9,14 +9,13 @@ name: food-delivery-dev
 
 services:
   postgres:
-    image: postgres:16-alpine
+    build: ./database
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-food_delivery}
     volumes:
       - pgdata_dev:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - '5433:5432'
     healthcheck:

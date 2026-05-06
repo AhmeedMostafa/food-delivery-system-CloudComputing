@@ -11,7 +11,7 @@ name: food-delivery-test
 
 services:
   postgres:
-    image: postgres:16-alpine
+    build: ./database
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -19,7 +19,6 @@ services:
       POSTGRES_DB: food_delivery_test
     volumes:
       - pgdata_test:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - '5442:5432'
     healthcheck:
