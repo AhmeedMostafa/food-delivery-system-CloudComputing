@@ -47,7 +47,8 @@ router.post('/register', async (req, res, next) => {
       try {
         const restResp = await axios.post(
           `${config.restaurantServiceUrl}/api/restaurants`,
-          { name: restaurant_name, cuisine: cuisine || null }
+          { name: restaurant_name, cuisine: cuisine || null },
+          { timeout: 5000 }
         );
         restaurantId = restResp.data.restaurant.id;
       } catch (err) {

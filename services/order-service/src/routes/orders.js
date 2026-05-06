@@ -24,7 +24,7 @@ router.post('/', async (req, res, next) => {
     // ---- Step 1: verify the user exists ----
     // Quick sanity check before we do anything else
     try {
-      await axios.get(`${config.userServiceUrl}/api/users/${user_id}`);
+      await axios.get(`${config.userServiceUrl}/api/users/${user_id}`, { timeout: 5000 });
     } catch (err) {
       if (err.response && err.response.status === 404) {
         return res.status(404).json({ error: `User ${user_id} not found` });
@@ -47,7 +47,8 @@ router.post('/', async (req, res, next) => {
       let menuItem;
       try {
         const menuResponse = await axios.get(
-          `${config.restaurantServiceUrl}/api/menu-items/${menu_item_id}`
+          `${config.restaurantServiceUrl}/api/menu-items/${menu_item_id}`,
+          { timeout: 5000 }
         );
         menuItem = menuResponse.data.item;
       } catch (err) {
