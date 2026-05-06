@@ -24,6 +24,11 @@ A full-stack food delivery application built with Node.js microservices, React, 
      |              |  | (3002)  | | | (3003)       |  | (3004)       |
      +----+----+----+  +------+--+ | +-------+------+  +-------+------+
           |    |               |   |         |                 |
+          |    |               |   |         |    (async msg)  v
+          |    |               |   |         |          +-------------+
+          |    |               |   |         +--------> |  RabbitMQ   |
+          |    |               |   |                    | (5672/15672)|
+          |    |               |   |                    +-------------+
           +----+---------------+---+---------+-----------------+
                                |
                      +---------v---------+
@@ -34,6 +39,12 @@ A full-stack food delivery application built with Node.js microservices, React, 
                      |  order_svc        |
                      |  payment_svc      |
                      +-------------------+
+
+                        +------------------+
+                        |    Monitoring    |
+                        |   Prometheus &   |
+                        |     Grafana      |
+                        +------------------+
 ```
 
 ---
@@ -46,7 +57,8 @@ A full-stack food delivery application built with Node.js microservices, React, 
 | Frontend      | React 18 + Vite 5 + plain CSS           |
 | Database      | PostgreSQL 16 (one instance, 4 schemas) |
 | Auth          | JWT (jsonwebtoken) + bcryptjs           |
-| Inter-service | axios (REST)                            |
+| Inter-service | axios (REST) & RabbitMQ (Async)         |
+| Monitoring    | Prometheus + Grafana + cAdvisor         |
 | Containers    | Docker + Docker Compose v2              |
 | Orchestration | Kubernetes (Minikube)                   |
 
@@ -113,6 +125,8 @@ cp .env.example .env
 # --- Development (hot-reload, port 5173) ---
 docker compose -f docker-compose.dev.yml up --build
 # Frontend: http://localhost:5173
+# RabbitMQ: http://localhost:15672 (guest/guest)
+# Grafana: http://localhost:3000 (admin/admin)
 
 # --- Test (separate DB, port 4173) ---
 docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
@@ -152,6 +166,10 @@ kubectl get pods --watch
 
 # 6. Open the app
 minikube service frontend-service
+
+# 7. Access RabbitMQ and Grafana (in separate terminals)
+minikube service rabbitmq-service
+minikube service grafana-service
 ```
 
 ---

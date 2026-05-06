@@ -4,8 +4,11 @@ import cors from 'cors';
 import config from './config.js';
 import pool from './db.js';
 import paymentRoutes from './routes/payments.js';
+import { connectRabbitMQ } from './rabbitmq.js';
 
 const app = express();
+
+connectRabbitMQ();
 
 // ====== Middleware ======
 app.use(cors()); // allow all origins -- same policy as other services

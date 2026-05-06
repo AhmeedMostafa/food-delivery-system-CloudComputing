@@ -20,6 +20,7 @@ data:
   USER_SERVICE_URL: http://user-service:3001
   RESTAURANT_SERVICE_URL: http://restaurant-service:3002
   PAYMENT_SERVICE_URL: http://payment-service:3004
+  RABBITMQ_URL: amqp://rabbitmq-service:5672
   NODE_ENV: production
 ---
 # Second ConfigMap: embeds init.sql so postgres runs it on first start.

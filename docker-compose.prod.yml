@@ -5,6 +5,85 @@ version: '3.9'
 # Run: docker compose -f docker-compose.prod.yml up -d
 
 services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER is required}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS is required}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    networks:
+      - food_net_prod
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    networks:
+      - food_net_prod
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    networks:
+      - food_net_prod
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    restart: unless-stopped
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    networks:
+      - food_net_prod
+
   postgres:
     build: ./database
     restart: unless-stopped
@@ -19,6 +98,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    networks:
+      - food_net_prod
 
   user-service:
     build: ./services/user-service
@@ -35,6 +116,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - food_net_prod
 
   restaurant-service:
     build: ./services/restaurant-service
@@ -51,6 +134,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - food_net_prod
 
   order-service:
     build: ./services/order-service
@@ -67,9 +152,12 @@ services:
       USER_SERVICE_URL: http://user-service:3001
       RESTAURANT_SERVICE_URL: http://restaurant-service:3002
       PAYMENT_SERVICE_URL: http://payment-service:3004
+      RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - food_net_prod
 
   payment-service:
     build: ./services/payment-service
@@ -82,9 +170,12 @@ services:
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       DB_NAME: ${DB_NAME:-food_delivery}
+      RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - food_net_prod
 
   frontend:
     build: ./frontend
@@ -96,6 +187,15 @@ services:
       - restaurant-service
       - order-service
       - payment-service
+    networks:
+      - food_net_prod
 
 volumes:
   pgdata:
+  rabbitmq_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  food_net_prod:
+    driver: bridge

@@ -3,6 +3,7 @@ import express from 'express';
 import axios from 'axios';
 import pool from '../db.js';
 import config from '../config.js';
+import { getChannel } from '../rabbitmq.js';
 
 const router = express.Router();
 
@@ -106,19 +107,23 @@ router.post('/', async (req, res, next) => {
       client.release();
     }
 
-    // ---- Step 4: record the payment (fire-and-forget style, don't fail the order) ----
-    // We try to create a payment record but don't block the order response if it fails.
-    // TODO: in a real system you'd want stronger guarantees here (e.g. a saga pattern)
+    // ---- Step 4: publish order_created event to RabbitMQ ----
     try {
-      await axios.post(`${config.paymentServiceUrl}/api/payments`, {
-        order_id: newOrder.id,
-        user_id,
-        amount: calculatedTotal,
-        method: payment_method || 'CREDIT_CARD',
-      });
-    } catch (paymentErr) {
-      // Log the failure but don't crash the order -- the payment can be retried separately
-      console.warn('[order-service] Payment recording failed for order', newOrder.id, ':', paymentErr.message);
+      const channel = getChannel();
+      if (channel) {
+        const message = {
+          order_id: newOrder.id,
+          user_id,
+          amount: calculatedTotal,
+          method: payment_method || 'CREDIT_CARD',
+        };
+        channel.sendToQueue('payment_queue', Buffer.from(JSON.stringify(message)), { persistent: true });
+        console.log(`[order-service] Published order_created to payment_queue for order ${newOrder.id}`);
+      } else {
+        console.warn('[order-service] RabbitMQ channel not available, skipping payment message');
+      }
+    } catch (msgErr) {
+      console.warn('[order-service] Failed to publish to RabbitMQ:', msgErr.message);
     }
 
     res.status(201).json({ order: { ...newOrder, items: enrichedItems } });
