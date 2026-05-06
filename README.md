@@ -117,10 +117,10 @@ docker compose -f docker-compose.dev.yml up --build
 # --- Test (separate DB, port 4173) ---
 docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
 
-# --- Production (nginx, port 8080) ---
+# --- Production (nginx, port 80) ---
 # Edit .env and set real secrets first!
 docker compose -f docker-compose.prod.yml up --build -d
-# Frontend: http://localhost:8080
+# Frontend: http://localhost:80
 
 # Stop any environment
 docker compose -f docker-compose.dev.yml down

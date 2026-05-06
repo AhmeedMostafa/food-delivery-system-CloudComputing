@@ -111,7 +111,9 @@ services:
       - food_net_test
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      target: builder
     command: npm run dev -- --host 0.0.0.0 --port 4173
     environment:
       VITE_API_BASE_USER: http://localhost:4001

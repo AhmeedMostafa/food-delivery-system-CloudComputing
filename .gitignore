@@ -31,3 +31,7 @@ Thumbs.db
 
 # Postgres data dir (if ever mounted locally)
 pgdata/
+
+# Binaries
+kubectl
+minikube-linux-amd64
