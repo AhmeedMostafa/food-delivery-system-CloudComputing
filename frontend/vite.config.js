@@ -9,17 +9,17 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       host: '0.0.0.0',
       proxy: {
-        '/api/users': { 
-          target: env.VITE_API_BASE_USER || 'http://user-service:3001', 
-          changeOrigin: true 
+        '/api/users': {
+          target: env.VITE_API_BASE_USER || 'http://user-service:3001',
+          changeOrigin: true
         },
-        '/api/restaurants': { 
-          target: env.VITE_API_BASE_RESTAURANT || 'http://restaurant-service:3002', 
-          changeOrigin: true 
+        '/api/restaurants': {
+          target: env.VITE_API_BASE_RESTAURANT || 'http://restaurant-service:3002',
+          changeOrigin: true
         },
-        '/api/menu-items': { 
-          target: env.VITE_API_BASE_RESTAURANT || 'http://restaurant-service:3002', 
-          changeOrigin: true 
+        '/api/menu-items': {
+          target: env.VITE_API_BASE_RESTAURANT || 'http://restaurant-service:3002',
+          changeOrigin: true
         },
         '/api/orders': {
           target: env.VITE_API_BASE_ORDER || 'http://order-service:3003',

@@ -29,7 +29,7 @@ router.post('/', async (req, res, next) => {
       if (err.response && err.response.status === 404) {
         return res.status(404).json({ error: `User ${user_id} not found` });
       }
-      throw new Error(`User service unavailable: ${err.message}`);
+      throw new Error(`User service unavailable: ${err.message}`, { cause: err });
     }
 
     // ---- Step 2: fetch current price for each menu item ----
@@ -55,7 +55,7 @@ router.post('/', async (req, res, next) => {
         if (err.response && err.response.status === 404) {
           return res.status(404).json({ error: `Menu item ${menu_item_id} not found` });
         }
-        throw new Error(`Restaurant service unavailable: ${err.message}`);
+        throw new Error(`Restaurant service unavailable: ${err.message}`, { cause: err });
       }
 
       if (!menuItem.is_available) {
@@ -265,8 +265,9 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // ====== PATCH /api/orders/:id/status ======
-// Update order status -- only allows values from the VALID_STATUSES list.
-// Drivers can update to OUT_FOR_DELIVERY or DELIVERED; owners handle earlier states.
+// Update order status -- enforces forward-only transitions:
+//   PLACED -> ACCEPTED -> PREPARING -> OUT_FOR_DELIVERY -> DELIVERED
+// Going backward (e.g., DELIVERED -> ACCEPTED) is rejected with 400.
 // TODO: add auth check -- verify the caller is allowed to update this specific order
 router.patch('/:id/status', async (req, res, next) => {
   try {
@@ -282,6 +283,27 @@ router.patch('/:id/status', async (req, res, next) => {
       });
     }
 
+    // Fetch the current order to check the existing status before updating
+    const currentResult = await pool.query(
+      'SELECT id, status FROM order_svc.orders WHERE id = $1',
+      [orderId]
+    );
+
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const currentStatus = currentResult.rows[0].status;
+    const currentIndex = VALID_STATUSES.indexOf(currentStatus);
+    const newIndex = VALID_STATUSES.indexOf(status);
+
+    // Enforce forward-only transitions -- going backward or staying the same is not allowed
+    if (newIndex <= currentIndex) {
+      return res.status(400).json({
+        error: `Cannot transition from ${currentStatus} to ${status}. Status can only move forward.`,
+      });
+    }
+
     const result = await pool.query(
       `UPDATE order_svc.orders
        SET status = $1, updated_at = NOW()
@@ -289,10 +311,6 @@ router.patch('/:id/status', async (req, res, next) => {
        RETURNING id, user_id, restaurant_id, status, total_price, delivery_address, driver_id, created_at, updated_at`,
       [status, orderId]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
 
     res.json({ order: result.rows[0] });
   } catch (err) {

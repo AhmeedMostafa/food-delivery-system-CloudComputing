@@ -33,7 +33,11 @@ export const connectRabbitMQ = async (attempt = 1) => {
     const amqpServer = buildAmqpUrl();
     connection = await amqp.connect(amqpServer);
     channel = await connection.createChannel();
-    await channel.assertQueue('payment_queue', { durable: true });
+    // Must match the DLX args used by payment-service to avoid PRECONDITION_FAILED on re-declare
+    await channel.assertQueue('payment_queue', {
+      durable: true,
+      arguments: { 'x-dead-letter-exchange': 'payment_queue_dlx' },
+    });
 
     console.log('[order-service] Connected to RabbitMQ');
 

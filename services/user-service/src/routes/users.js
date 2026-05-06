@@ -53,7 +53,7 @@ router.post('/register', async (req, res, next) => {
         restaurantId = restResp.data.restaurant.id;
       } catch (err) {
         // If restaurant service is down, fail fast -- don't create a broken account
-        throw new Error(`Could not create restaurant: ${err.message}`);
+        throw new Error(`Could not create restaurant: ${err.message}`, { cause: err });
       }
     }
 

@@ -2,12 +2,15 @@
   "name": "payment-service",
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "description": "Payment recording and transaction history service",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "node -e \"console.log('payment-service tests passed')\" && exit 0"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage --forceExit"
   },
   "dependencies": {
     "amqplib": "^0.10.3",
@@ -17,6 +20,10 @@
     "pg": "^8.11.3"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.3.0",
+    "jest": "^30.3.0",
+    "nodemon": "^3.0.2",
+    "supertest": "^7.2.2"
   }
 }

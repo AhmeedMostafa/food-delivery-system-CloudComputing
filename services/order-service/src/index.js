@@ -1,33 +1,11 @@
 // ====== Order Service Entry Point ======
-import express from 'express';
-import cors from 'cors';
 import config from './config.js';
 import pool from './db.js';
-import orderRoutes from './routes/orders.js';
+import app from './app.js';
 import { connectRabbitMQ } from './rabbitmq.js';
 
-const app = express();
-
+// Start RabbitMQ connection separately from the app -- keeps app.js testable
 connectRabbitMQ();
-
-// ====== Middleware ======
-app.use(cors());
-app.use(express.json());
-
-// ====== Routes ======
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'order-service' });
-});
-
-app.use('/api/orders', orderRoutes);
-
-// ====== Global Error Handler ======
-// eslint-disable-next-line no-unused-vars
-app.use((err, _req, res, _next) => {
-  console.error('[error]', err.message);
-  const status = err.status || err.statusCode || 500;
-  res.status(status).json({ error: err.message || 'Internal server error' });
-});
 
 // ====== Start Server ======
 const server = app.listen(config.port, () => {

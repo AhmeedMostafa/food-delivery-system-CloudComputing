@@ -19,7 +19,7 @@ data:
         relabel_configs:
         - action: labelmap
           regex: __meta_kubernetes_node_label_(.+)
-        
+
       - job_name: 'kubernetes-cadvisor'
         kubernetes_sd_configs:
         - role: node
