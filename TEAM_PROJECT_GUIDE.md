@@ -419,7 +419,7 @@ Browser → nginx:80
 
 | Tool           | Port | Purpose                                              |
 | -------------- | ---- | ---------------------------------------------------- |
-| **Prometheus** | 9090 | Scrapes metrics every 15s from services and cAdvisor |
+| **Prometheus** | 9090 | Scrapes metrics every 15s from services (via `/metrics`) and cAdvisor |
 | **Grafana**    | 3000 | Visual dashboards (login: admin/admin)               |
 | **cAdvisor**   | 8080 | Collects container CPU, memory, network stats        |
 | **K8s RBAC**   | N/A  | Allows Prometheus to discover services via the API   |

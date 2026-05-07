@@ -23,7 +23,6 @@ spec:
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "3004"
-        prometheus.io/path: "/health"
     spec:
       containers:
         - name: payment-service

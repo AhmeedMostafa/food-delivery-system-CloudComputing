@@ -3,6 +3,10 @@ import express from 'express';
 import cors from 'cors';
 import restaurantRoutes from './routes/restaurants.js';
 import menuRoutes from './routes/menu.js';
+import client from 'prom-client';
+
+// ====== Prometheus Metrics ======
+client.collectDefaultMetrics();
 
 const app = express();
 
@@ -17,6 +21,11 @@ app.use((req, res, next) => {
 // ====== Routes ======
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'restaurant-service' });
+});
+
+app.get('/metrics', async (_req, res) => {
+  res.set('Content-Type', client.register.contentType);
+  res.end(await client.register.metrics());
 });
 
 app.use('/api/restaurants', restaurantRoutes);

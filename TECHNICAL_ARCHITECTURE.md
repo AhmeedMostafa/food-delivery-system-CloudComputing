@@ -174,7 +174,7 @@ The project includes 22 K8s manifests in the `/k8s` directory:
 
 ### Monitoring & Observability
 
-- **Prometheus:** Scrapes metrics every 15 seconds. Uses **Kubernetes Service Discovery** (via pod annotations like `prometheus.io/scrape`) to automatically find new service replicas.
+- **Prometheus:** Scrapes metrics every 15 seconds. Uses **Kubernetes Service Discovery** (via pod annotations like `prometheus.io/scrape`) to automatically find new service replicas. Each service is natively instrumented with `prom-client` to export internal application metrics.
 - **Grafana:** Provides visual dashboards for system metrics (login:
   admin/admin).
 - **cAdvisor:** Collects container-level resource usage (CPU, memory, network

@@ -2,6 +2,10 @@
 import express from 'express';
 import cors from 'cors';
 import userRoutes from './routes/users.js';
+import client from 'prom-client';
+
+// ====== Prometheus Metrics ======
+client.collectDefaultMetrics();
 
 const app = express();
 
@@ -12,6 +16,11 @@ app.use(express.json());
 // ====== Routes ======
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'user-service' });
+});
+
+app.get('/metrics', async (_req, res) => {
+  res.set('Content-Type', client.register.contentType);
+  res.end(await client.register.metrics());
 });
 
 app.use('/api/users', userRoutes);

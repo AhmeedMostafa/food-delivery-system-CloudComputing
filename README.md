@@ -244,6 +244,7 @@ The Kubernetes deployment includes a fully automated monitoring stack.
 
 ### Service Discovery
 Prometheus is configured to automatically discover and scrape microservices. This is achieved via:
+- **Native Instrumentation**: Every microservice now includes `prom-client` and exposes a `/metrics` endpoint with Node.js process and memory stats.
 - **Pod Annotations**: Each microservice deployment includes `prometheus.io/scrape: "true"` and `prometheus.io/port: "<port>"`.
 - **RBAC Security**: The `21-prometheus-rbac.yaml` manifest creates a `ServiceAccount`, `ClusterRole`, and `ClusterRoleBinding` to allow Prometheus to securely list pods across the cluster.
 
