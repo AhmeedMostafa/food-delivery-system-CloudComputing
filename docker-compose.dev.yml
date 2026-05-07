@@ -1,5 +1,3 @@
-version: '3.9'
-
 # ====== Development Compose ======
 # Hot-reload enabled via nodemon. Uses host-mounted source code.
 # Run: docker compose -f docker-compose.dev.yml up --build
@@ -109,12 +107,14 @@ services:
       - food_net_dev
 
   user-service:
-    build: ./services/user-service
+    build:
+      context: ./services/user-service
+      args:
+        NODE_ENV: development
     # nodemon watches for file changes and restarts automatically
-    command: npx nodemon src/index.js
+    command: nodemon src/index.js
     volumes:
       - ./services/user-service/src:/app/src
-      - ./services/user-service/node_modules:/app/node_modules
     environment:
       PORT: 3001
       NODE_ENV: development
@@ -133,11 +133,13 @@ services:
       - food_net_dev
 
   restaurant-service:
-    build: ./services/restaurant-service
-    command: npx nodemon src/index.js
+    build:
+      context: ./services/restaurant-service
+      args:
+        NODE_ENV: development
+    command: nodemon src/index.js
     volumes:
       - ./services/restaurant-service/src:/app/src
-      - ./services/restaurant-service/node_modules:/app/node_modules
     environment:
       PORT: 3002
       NODE_ENV: development
@@ -155,11 +157,13 @@ services:
       - food_net_dev
 
   order-service:
-    build: ./services/order-service
-    command: npx nodemon src/index.js
+    build:
+      context: ./services/order-service
+      args:
+        NODE_ENV: development
+    command: nodemon src/index.js
     volumes:
       - ./services/order-service/src:/app/src
-      - ./services/order-service/node_modules:/app/node_modules
     environment:
       PORT: 3003
       NODE_ENV: development
@@ -181,11 +185,13 @@ services:
       - food_net_dev
 
   payment-service:
-    build: ./services/payment-service
-    command: npx nodemon src/index.js
+    build:
+      context: ./services/payment-service
+      args:
+        NODE_ENV: development
+    command: nodemon src/index.js
     volumes:
       - ./services/payment-service/src:/app/src
-      - ./services/payment-service/node_modules:/app/node_modules
     environment:
       PORT: 3004
       NODE_ENV: development
