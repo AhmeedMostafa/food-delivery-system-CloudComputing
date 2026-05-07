@@ -215,7 +215,7 @@ minikube service grafana-service
 
 | Method | Path                              | Auth | Description                                     |
 |--------|-----------------------------------|------|-------------------------------------------------|
-| POST   | /api/orders                       | No   | Place order; triggers mock payment              |
+| POST   | /api/orders                       | No   | Place order; publishes to RabbitMQ payment_queue|
 | GET    | /api/orders/:id                   | No   | Get single order + items                        |
 | GET    | /api/orders/user/:userId          | No   | List customer's order history                   |
 | GET    | /api/orders/restaurant/:restId    | No   | List orders for a restaurant dashboard          |
@@ -228,7 +228,7 @@ minikube service grafana-service
 
 | Method | Path                         | Auth | Description                                     |
 |--------|------------------------------|------|-------------------------------------------------|
-| POST   | /api/payments                | No   | Record a new payment (called by order-service)  |
+| POST   | /api/payments                | No   | Record a manual payment (also listens on RabbitMQ)|
 | GET    | /api/payments/order/:orderId | No   | Get payment status for a specific order         |
 | GET    | /api/payments/user/:userId   | No   | List payment history for a user                 |
 | GET    | /health                      | No   | Health check                                    |
