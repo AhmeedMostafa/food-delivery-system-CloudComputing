@@ -47,13 +47,14 @@ data:
       "uid": "food-delivery-k3s",
       "timezone": "browser",
       "refresh": "30s",
+      "schemaVersion": 36,
       "panels": [
         {
           "id": 1,
           "title": "Pods Running",
           "type": "stat",
           "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
-          "targets": [{"expr": "count(kube_pod_info{exported_namespace='default'})", "legendFormat": "Pods"}],
+          "targets": [{"expr": "count(kube_pod_info{exported_namespace='default'})", "legendFormat": "Pods", "refId": "A"}],
           "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": 0}]}}}
         },
         {
@@ -61,7 +62,7 @@ data:
           "title": "Deployments Up-to-Date",
           "type": "stat",
           "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
-          "targets": [{"expr": "sum(kube_deployment_status_replicas_updated)", "legendFormat": "Updated"}],
+          "targets": [{"expr": "sum(kube_deployment_status_replicas_updated)", "legendFormat": "Updated", "refId": "A"}],
           "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": 0}]}}}
         },
         {
@@ -69,7 +70,7 @@ data:
           "title": "Number of Nodes",
           "type": "stat",
           "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
-          "targets": [{"expr": "count(kube_node_info)", "legendFormat": "Nodes"}],
+          "targets": [{"expr": "count(kube_node_info)", "legendFormat": "Nodes", "refId": "A"}],
           "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": 0}]}}}
         },
         {
@@ -77,7 +78,7 @@ data:
           "title": "Services UP",
           "type": "stat",
           "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
-          "targets": [{"expr": "count(up{job='kubernetes-pods'} == 1)", "legendFormat": "UP"}],
+          "targets": [{"expr": "count(up{job='kubernetes-pods'} == 1)", "legendFormat": "UP", "refId": "A"}],
           "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": 0}]}}}
         },
         {
@@ -85,14 +86,14 @@ data:
           "title": "CPU Usage per Service",
           "type": "timeseries",
           "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
-          "targets": [{"expr": "sum(rate(container_cpu_usage_seconds_total{image!='', container!='POD', container!=''}[5m])) by (pod)", "legendFormat": "{{pod}}"}]
+          "targets": [{"expr": "sum(rate(container_cpu_usage_seconds_total{image!='', container!='POD', container!=''}[5m])) by (pod)", "legendFormat": "{{pod}}", "refId": "A"}]
         },
         {
           "id": 6,
           "title": "Memory Usage per Service",
           "type": "timeseries",
           "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
-          "targets": [{"expr": "sum(container_memory_working_set_bytes{image!='', container!='POD', container!=''}) by (pod)", "legendFormat": "{{pod}}"}],
+          "targets": [{"expr": "sum(container_memory_working_set_bytes{image!='', container!='POD', container!=''}) by (pod)", "legendFormat": "{{pod}}", "refId": "A", "range": true}],
           "fieldConfig": {"defaults": {"unit": "bytes"}}
         },
         {
@@ -100,7 +101,7 @@ data:
           "title": "Total Cluster CPU Usage",
           "type": "gauge",
           "gridPos": {"h": 6, "w": 6, "x": 0, "y": 12},
-          "targets": [{"expr": "sum(rate(container_cpu_usage_seconds_total{image!=''}[5m]))", "legendFormat": "CPU"}],
+          "targets": [{"expr": "sum(rate(container_cpu_usage_seconds_total{image!=''}[5m]))", "legendFormat": "CPU", "refId": "A"}],
           "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "yellow", "value": 0.7}, {"color": "red", "value": 0.9}]}}}
         },
         {
@@ -108,7 +109,7 @@ data:
           "title": "Total Cluster Memory Usage",
           "type": "gauge",
           "gridPos": {"h": 6, "w": 6, "x": 6, "y": 12},
-          "targets": [{"expr": "sum(container_memory_working_set_bytes{image!=''})", "legendFormat": "Memory"}],
+          "targets": [{"expr": "sum(container_memory_working_set_bytes{image!=''})", "legendFormat": "Memory", "refId": "A"}],
           "fieldConfig": {"defaults": {"unit": "bytes", "thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "yellow", "value": 1073741824}, {"color": "red", "value": 2147483648}]}}}
         },
         {
@@ -116,7 +117,7 @@ data:
           "title": "Node.js Heap Memory (prom-client)",
           "type": "timeseries",
           "gridPos": {"h": 6, "w": 12, "x": 12, "y": 12},
-          "targets": [{"expr": "nodejs_heap_size_used_bytes", "legendFormat": "{{app}}"}],
+          "targets": [{"expr": "nodejs_heap_size_used_bytes", "legendFormat": "{{app}}", "refId": "A"}],
           "fieldConfig": {"defaults": {"unit": "bytes"}}
         },
         {
@@ -124,7 +125,7 @@ data:
           "title": "Deployment Replicas",
           "type": "bargauge",
           "gridPos": {"h": 6, "w": 12, "x": 0, "y": 18},
-          "targets": [{"expr": "kube_deployment_status_replicas_available", "legendFormat": "{{deployment}}"}],
+          "targets": [{"expr": "kube_deployment_status_replicas_available", "legendFormat": "{{deployment}}", "refId": "A"}],
           "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": 0}, {"color": "green", "value": 1}]}}}
         },
         {
@@ -132,10 +133,8 @@ data:
           "title": "Network Receive (bytes/s)",
           "type": "timeseries",
           "gridPos": {"h": 6, "w": 12, "x": 12, "y": 18},
-          "targets": [{"expr": "sum(rate(container_network_receive_bytes_total[5m])) by (pod)", "legendFormat": "{{pod}}"}],
+          "targets": [{"expr": "sum(rate(container_network_receive_bytes_total[5m])) by (pod)", "legendFormat": "{{pod}}", "refId": "A"}],
           "fieldConfig": {"defaults": {"unit": "Bps"}}
         }
-      ],
-      "schemaVersion": 36,
-      "version": 1
+      ]
     }
