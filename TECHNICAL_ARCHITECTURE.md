@@ -65,8 +65,7 @@ step-by-step lifecycle:
 | `/services`               | Contains the source code for the 4 microservices. Each is a standalone Node.js/Express app.                                        |
 | `/frontend`               | A React single-page application (SPA) built with Vite and styled with modern CSS. Served by nginx in production.                   |
 | `/database`               | Contains `Dockerfile` and `init.sql`, the source of truth for the database schema and seed data.                                   |
-| `/k8s`                    | 22 Kubernetes manifests for deploying the system to a cluster (Deployments, Services, ConfigMaps, Secrets, StatefulSets, RBAC). |
-| `/prometheus`             | Prometheus scrape configuration (`prometheus.yml`).                                                                                |
+| `/k8s`                    | **24** Kubernetes manifests for deploying the system to any cluster (Deployments, Services, ConfigMaps, Secrets, StatefulSets, RBAC, Monitoring). |
 | `/tests/e2e`              | End-to-end test suite (`run-e2e.js`) — 44 assertions against the live stack.                                                       |
 | `docker-compose.dev.yml`  | Development environment — hot-reloading with nodemon, ports exposed.                                                               |
 | `docker-compose.test.yml` | Test environment — isolated DB, runs `npm test` in each service.                                                                   |
@@ -145,8 +144,7 @@ they share a single PostgreSQL instance separated by **4 Postgres Schemas**.
 
 All backend services use a **2-stage Dockerfile**:
 
-1. **deps stage:** Installs npm packages. Conditionally installs dev
-   dependencies when `NODE_ENV=development` (for nodemon support in dev).
+1. **deps stage:** Installs npm packages using `npm install --omit=dev` for production.
 2. **runtime stage:** Copies only `node_modules`, `src/`, and `package.json`
    into a clean Alpine image. Runs as `USER node` (non-root) for security.
 
@@ -157,28 +155,64 @@ The frontend uses a **3-stage Dockerfile**:
 3. **runtime:** Copies the built files into an `nginx:alpine` image with a
    custom `nginx.conf`.
 
-### Kubernetes & High Availability
+### Kubernetes Architecture
 
-The project includes 22 K8s manifests in the `/k8s` directory:
+The project includes **24 K8s manifests** in the `/k8s` directory, deployable to any standard Kubernetes cluster:
 
-- **Deployments:** Define the desired state. Backend services are configured
-  with `replicas: 2` for high availability. Each has readiness and liveness
-  probes hitting the `/health` endpoint.
-- **Services:** `ClusterIP` for internal backend services. `NodePort` for the frontend (30080) and monitoring stack (30001-30003), allowing external access via a reverse proxy or Node IP.
-- **ConfigMaps:** Centralize environment variables (DB host, service URLs) and
-  embed the `init.sql` for Postgres initialization.
-- **Secrets:** Store sensitive data (DB password, JWT secret, RabbitMQ
-  credentials) base64-encoded.
-- **StatefulSets:** Used for RabbitMQ and PostgreSQL (require stable storage via PersistentVolumeClaims).
-- **RBAC:** Grants Prometheus permission to list pods via a `ServiceAccount`, `ClusterRole`, and `ClusterRoleBinding` (see `21-prometheus-rbac.yaml`).
+| Resource Type   | What It Does                                                       | Key Files |
+| :-------------- | :----------------------------------------------------------------- | :-------- |
+| **Secret**      | Stores sensitive data (DB password, JWT secret, RabbitMQ creds)   | `00-secret.yaml` |
+| **ConfigMap**   | Non-sensitive config (DB host, service URLs, init.sql, Prometheus config, Grafana dashboard) | `01-configmap.yaml`, `16-prometheus-configmap.yaml`, `23-grafana-dashboard.yaml` |
+| **Deployment**  | Defines pod templates + replica count for stateless services       | `04, 06, 08, 10, 12, 17, 22` |
+| **StatefulSet** | Stable storage for PostgreSQL, RabbitMQ, and Grafana              | `02, 14, 19` |
+| **Service**     | Network endpoints (ClusterIP for internal, NodePort for external)  | `03, 05, 07, 09, 11, 13, 15, 18, 20` |
+| **RBAC**        | Security permissions for Prometheus to scrape the cluster API     | `21-prometheus-rbac.yaml` |
 
-### Monitoring & Observability
+#### Service Exposure
 
-- **Prometheus:** Scrapes metrics every 15 seconds. Uses **Kubernetes Service Discovery** (via pod annotations like `prometheus.io/scrape`) to automatically find new service replicas. Each service is natively instrumented with `prom-client` to export internal application metrics.
-- **Grafana:** Provides visual dashboards for system metrics (login:
-  admin/admin).
-- **cAdvisor:** Collects container-level resource usage (CPU, memory, network
-  I/O).
+| Service              | Type                  | Port  |
+| :------------------- | :-------------------- | :---- |
+| `frontend-service`   | **NodePort**          | 30080 |
+| `rabbitmq-service`   | **NodePort**          | 30003 |
+| `prometheus-service` | **NodePort**          | 30002 |
+| `grafana-service`    | **NodePort**          | 30001 |
+| All backend services | ClusterIP (internal)  | —     |
+| PostgreSQL           | ClusterIP (internal)  | 5432  |
+
+### Monitoring & Observability Stack
+
+The monitoring stack is **fully automated** — no manual Grafana configuration required.
+
+#### Components
+
+| Component | Manifest | Purpose |
+|:----------|:---------|:--------|
+| **Prometheus** | `16,17,18` | Collects metrics every 15s via Kubernetes Service Discovery |
+| **Grafana** | `19,20,23` | Pre-provisioned dashboards (StatefulSet with PVC for persistence) |
+| **kube-state-metrics** | `22` | Exposes Kubernetes object metrics (deployment replicas, pod states) |
+| **RBAC** | `21` | Grants Prometheus access to `nodes`, `pods`, `deployments`, `endpoints` |
+
+#### How prom-client Works
+
+Every microservice is natively instrumented with `prom-client` (v15.1.0):
+- Exposes a `/metrics` endpoint with Node.js runtime metrics (heap, event loop, GC)
+- Pods are annotated with `prometheus.io/scrape: "true"` so Prometheus auto-discovers them
+
+#### How Prometheus Service Discovery Works
+
+Prometheus uses the Kubernetes API (authorized via RBAC) to:
+1. List all pods in the cluster
+2. Filter pods with annotation `prometheus.io/scrape: "true"`
+3. Scrape each pod's `/metrics` endpoint on the declared port
+4. Apply relabeling rules to normalize `node`, `namespace`, and `pod` labels
+
+#### Grafana Auto-Provisioning
+
+The Grafana StatefulSet mounts two ConfigMaps at startup:
+- `grafana-provisioning-datasource` → `/etc/grafana/provisioning/datasources/` (auto-connects to Prometheus)
+- `grafana-food-delivery-dashboard` → `/etc/grafana/dashboards/` (loads the Food Delivery dashboard)
+
+This means **Grafana is fully configured on first boot** with no manual steps required.
 
 ---
 
@@ -213,7 +247,7 @@ The frontend uses route guards to enforce access based on role.
   statements to separate build-time concerns from runtime, resulting in smaller
   and more secure final images.
 - **StatefulSet:** A Kubernetes workload API object for managing stateful
-  applications (like RabbitMQ and PostgreSQL) that require stable storage and
+  applications (like RabbitMQ, PostgreSQL, and Grafana) that require stable storage and
   network identity.
 - **NodePort:** A Kubernetes Service type that exposes a service on a static
   port on every node's IP, making it accessible from outside the cluster.
@@ -222,6 +256,15 @@ The frontend uses route guards to enforce access based on role.
 - **Readiness/Liveness Probes:** Kubernetes health checks. Readiness determines
   if a pod should receive traffic; liveness determines if a pod should be
   restarted.
+- **prom-client:** The official Node.js Prometheus client library. Exposes
+  runtime metrics (heap usage, event loop lag, GC stats) at a `/metrics` endpoint.
+- **kube-state-metrics:** A service that listens to the Kubernetes API and
+  generates metrics about object states (e.g., `kube_deployment_status_replicas_available`).
+- **cAdvisor:** A container advisor built into Kubernetes nodes that collects
+  real-time CPU, memory, and network usage per container.
+- **Relabeling (Prometheus):** A configuration technique that transforms or
+  normalizes metric labels at scrape time. Used here to ensure labels like
+  `node`, `namespace`, and `pod` are standardized across all scraped targets.
 - **CRUD:** Create, Read, Update, Delete. The standard operations performed on
   most entities (e.g., creating a user, reading a menu).
 - **SPA (Single Page Application):** The frontend approach where the browser

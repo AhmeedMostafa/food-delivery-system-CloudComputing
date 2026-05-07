@@ -1,6 +1,6 @@
 # FoodieGo — Complete Team Project Guide
 
-> **Audience:** All 6 team members. Read this before the project discussion.
+> **Audience:** All team members. Read this before the project discussion.
 > **Goal:** Understand every piece of the system — what it is, why it exists,
 > and how to run it.
 
@@ -13,9 +13,10 @@ project. It demonstrates:
 
 - **Microservices architecture** (4 independent backend services)
 - **Containerization** with Docker (3 separate environments)
-- **Orchestration** with Kubernetes (Minikube)
+- **Orchestration** with Kubernetes (compatible with any standard K8s cluster)
 - **Asynchronous messaging** with RabbitMQ
-- **Monitoring** with Prometheus + Grafana + cAdvisor
+- **Full observability** with Prometheus, Grafana, cAdvisor, kube-state-metrics,
+  and prom-client
 
 A customer browses restaurants, adds food to a cart, places an order, and the
 system automatically processes payment via an async message queue.
@@ -24,17 +25,17 @@ system automatically processes payment via an async message queue.
 
 ## 2. Tech Stack
 
-| Layer             | Technology                      | Why                                                    |
-| ----------------- | ------------------------------- | ------------------------------------------------------ |
-| **Backend**       | Node.js 20 + Express 4          | Lightweight, async I/O, perfect for microservices      |
-| **Frontend**      | React 18 + Vite 5 + CSS         | Modern SPA framework, fast dev server                  |
-| **Database**      | PostgreSQL 16                   | Reliable RDBMS, supports schemas for service isolation |
-| **Auth**          | JWT + bcryptjs                  | Stateless auth — no server-side sessions needed        |
-| **Sync Comms**    | axios (REST)                    | Services call each other via HTTP                      |
-| **Async Comms**   | RabbitMQ                        | Order→Payment decoupled via message queue              |
-| **Monitoring**    | Prometheus + Grafana + cAdvisor | Metrics collection, dashboards, container stats        |
-| **Containers**    | Docker + Docker Compose v2      | Reproducible environments                              |
-| **Orchestration** | Kubernetes (Minikube)           | Production-like cluster on a local machine             |
+| Layer             | Technology                                                         | Why                                                    |
+| ----------------- | ------------------------------------------------------------------ | ------------------------------------------------------ |
+| **Backend**       | Node.js 20 + Express 4                                             | Lightweight, async I/O, perfect for microservices      |
+| **Frontend**      | React 18 + Vite 5 + CSS                                            | Modern SPA framework, fast dev server                  |
+| **Database**      | PostgreSQL 16                                                      | Reliable RDBMS, supports schemas for service isolation |
+| **Auth**          | JWT + bcryptjs                                                     | Stateless auth — no server-side sessions needed        |
+| **Sync Comms**    | axios (REST)                                                       | Services call each other via HTTP                      |
+| **Async Comms**   | RabbitMQ                                                           | Order→Payment decoupled via message queue              |
+| **Monitoring**    | Prometheus + Grafana + cAdvisor + prom-client + kube-state-metrics | Full-stack observability                               |
+| **Containers**    | Docker + Docker Compose v2                                         | Reproducible environments                              |
+| **Orchestration** | Kubernetes (any cluster — Minikube, K3s, cloud)                    | Production-grade container orchestration               |
 
 ---
 
@@ -48,8 +49,8 @@ food-delivery-system/
 ├── setup_env.sh              # One-click Ubuntu dependency installer
 │
 ├── database/
-│   ├── Dockerfile            # Custom Postgres image (2 lines)
-│   └── init.sql              # Schema creation + seed data (135 lines)
+│   ├── Dockerfile            # Custom Postgres image
+│   └── init.sql              # Schema creation + seed data
 │
 ├── services/
 │   ├── user-service/         # Port 3001 — auth, registration, profiles
@@ -66,8 +67,7 @@ food-delivery-system/
 ├── docker-compose.test.yml   # Testing environment (isolated DB)
 ├── docker-compose.prod.yml   # Production environment (nginx, no mounts)
 │
-├── k8s/                      # 22 Kubernetes manifest files
-├── prometheus/               # Prometheus scrape config
+├── k8s/                      # 24 Kubernetes manifest files
 └── tests/e2e/                # End-to-end test suite
 ```
 
@@ -80,10 +80,10 @@ Each service follows the **same internal structure**:
 ```
 service-name/
 ├── Dockerfile          # Multi-stage Docker build
-├── package.json        # Dependencies + scripts
+├── package.json        # Dependencies + scripts (includes prom-client)
 ├── src/
 │   ├── index.js        # Entry point — starts Express server
-│   ├── app.js          # Express app — middleware + routes + error handler
+│   ├── app.js          # Express app — middleware + routes + /metrics endpoint
 │   ├── config.js       # Environment variable reader
 │   ├── db.js           # PostgreSQL connection pool
 │   ├── rabbitmq.js     # (order + payment only) RabbitMQ connection
@@ -91,6 +91,10 @@ service-name/
 │   └── middleware/     # (user-service only) JWT auth middleware
 └── tests/              # Jest unit tests
 ```
+
+> **Note:** Every service's `app.js` includes `prom-client` to expose a
+> `/metrics` endpoint with Node.js runtime stats (heap, event loop, GC). This is
+> what Prometheus scrapes automatically.
 
 ### 4.1 User Service (port 3001)
 
@@ -104,6 +108,7 @@ service-name/
 | `/api/users/:id`      | GET     | Internal lookup (used by order-service)     |
 | `/api/users/drivers`  | GET     | List delivery drivers                       |
 | `/health`             | GET     | Returns `{"status":"ok"}`                   |
+| `/metrics`            | GET     | Prometheus metrics (prom-client)            |
 
 **Key logic:** When a `restaurant_owner` registers, the service also calls
 restaurant-service to auto-create their restaurant.
@@ -119,6 +124,7 @@ restaurant-service to auto-create their restaurant.
 | `/api/restaurants/:id/menu` | GET/POST       | List / add menu items    |
 | `/api/menu-items/:id`       | GET/PUT/DELETE | Single menu item CRUD    |
 | `/health`                   | GET            | Health check             |
+| `/metrics`                  | GET            | Prometheus metrics       |
 
 ### 4.3 Order Service (port 3003)
 
@@ -135,6 +141,7 @@ calculation, and payment triggering.
 | `/api/orders/:id/status`       | PATCH  | Update status (forward-only)            |
 | `/api/orders/:id/assign`       | PATCH  | Assign a delivery driver                |
 | `/health`                      | GET    | Health check                            |
+| `/metrics`                     | GET    | Prometheus metrics                      |
 
 **Order status state machine** (can only move forward):
 
@@ -152,6 +159,7 @@ PLACED → ACCEPTED → PREPARING → OUT_FOR_DELIVERY → DELIVERED
 | `/api/payments/order/:orderId` | GET    | Payment status for an order |
 | `/api/payments/user/:userId`   | GET    | User's payment history      |
 | `/health`                      | GET    | Health check                |
+| `/metrics`                     | GET    | Prometheus metrics          |
 
 ---
 
@@ -229,13 +237,9 @@ database-per-service):
 
 ## 7. Docker Compose — Three Environments Compared
 
-This is a critical topic. Here's why we have 3 files and what makes each one
-different:
-
 | Feature             | `dev`                             | `test`                  | `prod`                          |
 | ------------------- | --------------------------------- | ----------------------- | ------------------------------- |
 | **Purpose**         | Local development                 | Run automated tests     | Production simulation           |
-| **Project name**    | `food-delivery-dev`               | `food-delivery-test`    | (default)                       |
 | **Hot-reload**      | ✅ nodemon watches files          | ❌                      | ❌                              |
 | **Source mounts**   | ✅ `./src:/app/src`               | ❌                      | ❌                              |
 | **Service command** | `nodemon src/index.js`            | `npm test`              | `node src/index.js` (default)   |
@@ -247,19 +251,7 @@ different:
 | **Monitoring**      | ✅ Prometheus+Grafana+cAdvisor    | ❌                      | ✅ Prometheus+Grafana+cAdvisor  |
 | **Env var style**   | `${VAR:-default}` (safe fallback) | `${VAR:-default}`       | `${VAR:?error}` (MUST be set!)  |
 | **Restart policy**  | None                              | None                    | `unless-stopped`                |
-| **Resource limits** | ✅ CPU/Memory limits              | ❌                      | ✅ CPU/Memory limits            |
-| **Build args**      | `NODE_ENV: development`           | (default=production)    | (default=production)            |
 | **Network**         | `food_net_dev`                    | `food_net_test`         | `food_net_prod`                 |
-| **Volumes**         | `pgdata_dev`, etc.                | `pgdata_test`           | `pgdata`, etc.                  |
-
-**Why different ports?** So you can run dev and test **simultaneously** without
-port conflicts.
-
-**Why `${VAR:?error}` in prod?** It forces you to set secrets explicitly —
-prevents deploying with default passwords.
-
-**Why separate volumes?** So dev data, test data, and prod data never overwrite
-each other.
 
 ---
 
@@ -272,14 +264,12 @@ Every backend service uses the same **2-stage Dockerfile**:
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
-ARG NODE_ENV=production
-RUN if [ "$NODE_ENV" = "development" ]; then npm install; else npm ci --omit=dev; fi
+RUN npm install --omit=dev
 
 # Stage 2: Runtime (slim image)
 FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-ENV PATH /app/node_modules/.bin:$PATH
 COPY --from=deps /app/node_modules ./node_modules
 COPY src ./src
 COPY package.json ./
@@ -288,17 +278,11 @@ USER node
 CMD ["node", "src/index.js"]
 ```
 
-**Why multi-stage?**
+**Why `npm install --omit=dev` instead of `npm ci`?**
 
-- Stage 1 installs packages (large layer, cached)
-- Stage 2 copies only what's needed (small final image ~200MB vs ~1GB)
-- `USER node` — runs as non-root for security
-
-**Why the `NODE_ENV` build arg?**
-
-- In **dev**: passes `NODE_ENV=development` → installs devDependencies (like
-  `nodemon`)
-- In **prod**: defaults to `production` → only production dependencies
+Using `npm install --omit=dev` is more resilient — it doesn't fail if the
+`package-lock.json` gets out of sync when new dependencies (like `prom-client`)
+are added. It installs only production dependencies and always succeeds.
 
 **The frontend Dockerfile is 3-stage:**
 
@@ -310,33 +294,33 @@ CMD ["node", "src/index.js"]
 
 ## 9. Kubernetes Architecture
 
-The `k8s/` directory contains **21 manifest files** that deploy the entire
-system to Minikube:
+The `k8s/` directory contains **24 manifest files** deployable to any standard
+Kubernetes cluster:
 
 ### Resource Types Used
 
-| K8s Resource    | What It Does                                                      | Files                                                          |
-| --------------- | ----------------------------------------------------------------- | -------------------------------------------------------------- |
-| **Secret**      | Stores sensitive data (DB password, JWT secret, RabbitMQ creds)   | `00-secret.yaml`                                               |
-| **ConfigMap**   | Non-sensitive config (DB host, service URLs, init.sql)            | `01-configmap.yaml`, `16-prometheus-configmap.yaml`            |
-| **Deployment**  | Defines pod templates + replica count                             | `04, 06, 08, 10, 12, 17, 19`                                   |
-| **Service**     | Network endpoint for accessing pods                               | `03, 05, 07, 09, 11, 13, 15, 18, 20`                           |
-| **StatefulSet** | Like Deployment but with stable storage (for RabbitMQ & Postgres) | `02-postgres-statefulset.yaml`, `14-rabbitmq-statefulset.yaml` |
-| **RBAC**        | Security permissions for Prometheus to scrape the cluster        | `21-prometheus-rbac.yaml`                                      |
+| K8s Resource    | What It Does                                                                          | Files                                                                            |
+| --------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **Secret**      | Stores sensitive data (DB password, JWT secret, RabbitMQ creds)                       | `00-secret.yaml`                                                                 |
+| **ConfigMap**   | Non-sensitive config (DB host, service URLs, init.sql, Prometheus config, dashboards) | `01-configmap.yaml`, `16-prometheus-configmap.yaml`, `23-grafana-dashboard.yaml` |
+| **Deployment**  | Defines pod templates + replica count for stateless services                          | `04, 06, 08, 10, 12, 17, 22`                                                     |
+| **StatefulSet** | Stable storage for PostgreSQL, RabbitMQ, and Grafana                                  | `02-postgres`, `14-rabbitmq`, `19-grafana`                                       |
+| **Service**     | Network endpoints (ClusterIP internal, NodePort external)                             | `03, 05, 07, 09, 11, 13, 15, 18, 20`                                             |
+| **RBAC**        | Security permissions for Prometheus to scrape the cluster                             | `21-prometheus-rbac.yaml`                                                        |
 
 ### Service Types
 
-| Service              | Type                 | Why                                                   |
-| -------------------- | -------------------- | ----------------------------------------------------- |
-| `frontend-service`   | **NodePort** (30080) | Only one exposed to outside — you access the app here |
-| `postgres-service`   | ClusterIP            | Internal only — services connect via DNS              |
-| `user-service`       | ClusterIP            | Internal — nginx proxies to it                        |
-| `restaurant-service` | ClusterIP            | Internal — nginx proxies to it                        |
-| `order-service`      | ClusterIP            | Internal — nginx proxies to it                        |
-| `payment-service`    | ClusterIP            | Internal — nginx proxies to it                        |
-| `rabbitmq-service`   | **NodePort** (30003) | Exposed management dashboard                          |
-| `prometheus-service` | **NodePort** (30002) | Exposed metrics engine                                |
-| `grafana-service`    | **NodePort** (30001) | Exposed visual dashboards                             |
+| Service              | Type         | Port  | Why                                      |
+| -------------------- | ------------ | ----- | ---------------------------------------- |
+| `frontend-service`   | **NodePort** | 30080 | External access to the app               |
+| `postgres-service`   | ClusterIP    | 5432  | Internal only — services connect via DNS |
+| `user-service`       | ClusterIP    | 3001  | Internal — nginx proxies to it           |
+| `restaurant-service` | ClusterIP    | 3002  | Internal — nginx proxies to it           |
+| `order-service`      | ClusterIP    | 3003  | Internal — nginx proxies to it           |
+| `payment-service`    | ClusterIP    | 3004  | Internal — nginx proxies to it           |
+| `rabbitmq-service`   | **NodePort** | 30003 | Exposed management dashboard             |
+| `prometheus-service` | **NodePort** | 30002 | Exposed metrics engine                   |
+| `grafana-service`    | **NodePort** | 30001 | Exposed visual dashboards                |
 
 ### Replicas & Health Checks
 
@@ -347,16 +331,14 @@ system to Minikube:
 | order-service      | 2        | GET /health (5s delay) | GET /health (15s delay) |
 | payment-service    | 2        | GET /health (5s delay) | GET /health (15s delay) |
 | frontend           | 1        | GET / (3s delay)       | GET / (10s delay)       |
-| postgres           | 1        | —                      | —                       |
-| rabbitmq           | 1        | —                      | —                       |
+| postgres           | 1        | StatefulSet PVC        | —                       |
+| rabbitmq           | 1        | StatefulSet PVC        | —                       |
 | prometheus         | 1        | —                      | —                       |
-| grafana            | 1        | —                      | —                       |
+| grafana            | 1        | StatefulSet PVC        | —                       |
 
 ---
 
 ## 10. RabbitMQ — Async Messaging
-
-### How It Works
 
 ```
 Order Service                    RabbitMQ                    Payment Service
@@ -382,7 +364,55 @@ Order Service                    RabbitMQ                    Payment Service
 
 ---
 
-## 11. Frontend Architecture
+## 11. Monitoring Stack — Full Observability
+
+The Kubernetes monitoring stack is **fully automated** — no manual configuration
+needed.
+
+### Components
+
+| Tool                   | NodePort    | Purpose                                                                    |
+| ---------------------- | ----------- | -------------------------------------------------------------------------- |
+| **Prometheus**         | 30002       | Scrapes metrics every 15s from all pods + nodes                            |
+| **Grafana**            | 30001       | Pre-provisioned dashboards (login: admin/admin)                            |
+| **cAdvisor**           | Built-in    | Container CPU, memory, network stats (scraped from node /metrics/cadvisor) |
+| **kube-state-metrics** | 8080        | Kubernetes object metrics (replica counts, deployment status)              |
+| **prom-client**        | per service | Native Node.js metrics from each microservice's `/metrics` endpoint        |
+
+### Grafana Dashboard — "Food Delivery System - K3s Cluster"
+
+Automatically provisioned on startup. Shows:
+
+| Panel                    | Query Source       | What It Shows                            |
+| :----------------------- | :----------------- | :--------------------------------------- |
+| Pods Running             | kube-state-metrics | Live pod count in default namespace      |
+| Deployments Up-to-Date   | kube-state-metrics | Updated replica count                    |
+| Number of Nodes          | kube-state-metrics | Cluster node count                       |
+| Services UP              | Prometheus         | Count of healthy scraped endpoints       |
+| CPU Usage per Service    | cAdvisor           | Per-pod CPU consumption (time series)    |
+| Memory Usage per Service | cAdvisor           | Per-pod memory consumption (time series) |
+| Total Cluster CPU        | cAdvisor           | Cluster-wide CPU gauge                   |
+| Total Cluster Memory     | cAdvisor           | Cluster-wide memory gauge                |
+| Node.js Heap Memory      | prom-client        | Heap size per microservice               |
+| Deployment Replicas      | kube-state-metrics | Running replicas per deployment          |
+| Network Receive          | cAdvisor           | Inbound network traffic per pod          |
+
+### How Prometheus Discovers Services Automatically
+
+1. Each pod has annotations:
+   ```yaml
+   prometheus.io/scrape: "true"
+   prometheus.io/port: "3001"
+   ```
+2. Prometheus queries the Kubernetes API (allowed via RBAC in
+   `21-prometheus-rbac.yaml`)
+3. It finds all annotated pods and scrapes their `/metrics` endpoint
+4. Relabeling rules in `16-prometheus-configmap.yaml` normalize labels for
+   dashboard compatibility
+
+---
+
+## 12. Frontend Architecture
 
 ### Pages & Access Control
 
@@ -398,32 +428,6 @@ Order Service                    RabbitMQ                    Payment Service
 | Deliveries | `/deliveries`     | Drivers only       | Assigned deliveries                 |
 | Profile    | `/profile`        | Any logged-in user | Edit name, email, address, password |
 
-### How the Frontend Talks to the Backend
-
-- **In development**: The Vite dev server runs on port 5173
-- **In production**: Nginx serves the built static files AND reverse-proxies API
-  calls:
-
-```
-Browser → nginx:80
-  /              → serves index.html (React SPA)
-  /api/users/*   → proxy to user-service:3001
-  /api/restaurants/* → proxy to restaurant-service:3002
-  /api/orders/*  → proxy to order-service:3003
-  /api/payments/* → proxy to payment-service:3004
-```
-
----
-
-## 12. Monitoring Stack
-
-| Tool           | Port | Purpose                                              |
-| -------------- | ---- | ---------------------------------------------------- |
-| **Prometheus** | 9090 | Scrapes metrics every 15s from services (via `/metrics`) and cAdvisor |
-| **Grafana**    | 3000 | Visual dashboards (login: admin/admin)               |
-| **cAdvisor**   | 8080 | Collects container CPU, memory, network stats        |
-| **K8s RBAC**   | N/A  | Allows Prometheus to discover services via the API   |
-
 ---
 
 ## 13. Testing Strategy
@@ -433,10 +437,10 @@ Browser → nginx:80
 Each service has a `tests/` folder with Jest tests:
 
 ```bash
-cd services/user-service && npm test    # users.test.js
-cd services/restaurant-service && npm test  # restaurants.test.js
-cd services/order-service && npm test   # orders.test.js (25 tests)
-cd services/payment-service && npm test # payments.test.js (26 tests)
+cd services/user-service && npm test
+cd services/restaurant-service && npm test
+cd services/order-service && npm test
+cd services/payment-service && npm test
 ```
 
 ### E2E Tests (full system)
@@ -452,19 +456,9 @@ cd services/payment-service && npm test # payments.test.js (26 tests)
 node tests/e2e/run-e2e.js
 ```
 
-### Docker Compose Test Environment
-
-```bash
-docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
-```
-
-Runs `npm test` inside each container against an **isolated test database**.
-
 ---
 
 ## 14. Environment Variables
-
-All configuration is done via environment variables (12-factor app):
 
 | Variable                              | Where Set        | Purpose                         |
 | ------------------------------------- | ---------------- | ------------------------------- |
@@ -483,8 +477,8 @@ All configuration is done via environment variables (12-factor app):
 
 ### Prerequisites
 
-Run `bash setup_env.sh` OR install manually: Docker, Node.js 20, kubectl,
-minikube.
+Install Docker, Node.js 20, and kubectl. For local clusters, use Minikube or
+K3s.
 
 ### Development
 
@@ -504,22 +498,28 @@ docker compose -f docker-compose.prod.yml up --build -d
 # Frontend: http://localhost:80
 ```
 
-### Kubernetes
+### Kubernetes (any cluster)
 
 ```bash
-minikube start --driver=docker
-eval $(minikube docker-env)
-# Build images inside minikube:
+# Build images and load them into your cluster
 docker build -t food-delivery/user-service:latest ./services/user-service
 docker build -t food-delivery/restaurant-service:latest ./services/restaurant-service
 docker build -t food-delivery/order-service:latest ./services/order-service
 docker build -t food-delivery/payment-service:latest ./services/payment-service
 docker build -t food-delivery/frontend:latest ./frontend
 docker build -t food-delivery/postgres:latest ./database
-# Deploy:
+
+# Deploy all 24 manifests
 kubectl apply -f k8s/
-# Access:
-minikube service frontend-service --url
+
+# Watch pods start up
+kubectl get pods --watch
+
+# Access services via NodePort
+# Frontend:   http://<node-ip>:30080
+# Grafana:    http://<node-ip>:30001  (admin/admin)
+# Prometheus: http://<node-ip>:30002
+# RabbitMQ:   http://<node-ip>:30003  (guest/guest)
 ```
 
 ---
@@ -534,16 +534,3 @@ minikube service frontend-service --url
 | Owner (Spice Garden)  | `spice@owner.com`  | `owner123`  |
 | Driver 1              | `driver1@test.com` | `driver123` |
 | Driver 2              | `driver2@test.com` | `driver123` |
-
----
-
-## 17. Common Troubleshooting
-
-| Problem                                        | Cause                                        | Fix                                              |
-| ---------------------------------------------- | -------------------------------------------- | ------------------------------------------------ |
-| Services crash with "Cannot find package 'pg'" | Host `node_modules` mounted over container's | Remove `node_modules` volume mounts from compose |
-| `RABBITMQ_DEFAULT_USER is required`            | Prod compose requires explicit env vars      | Add `RABBITMQ_DEFAULT_USER=guest` to `.env`      |
-| `minikube service frontend` not found          | Service is named `frontend-service`          | Use `minikube service frontend-service`          |
-| `npm ci` permission denied                     | Docker created `node_modules` as root        | Run `sudo chown -R $USER:$USER .`                |
-| Postgres "data directory wrong ownership"      | Volume reused between restarts               | `kubectl delete pod -l app=postgres`             |
-| Frontend blank page in prod                    | Missing nginx `try_files` fallback           | Check `nginx.conf` is copied in Dockerfile       |

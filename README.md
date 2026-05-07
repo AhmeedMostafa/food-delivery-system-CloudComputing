@@ -1,6 +1,6 @@
 # FoodieGo — Food Delivery Microservices System
 
-A full-stack food delivery application built with Node.js microservices, React, PostgreSQL, Docker, and Kubernetes. Designed to run on Ubuntu 22.04 + Minikube.
+A full-stack food delivery application built with Node.js microservices, React, PostgreSQL, Docker, and Kubernetes.
 
 ---
 
@@ -40,11 +40,12 @@ A full-stack food delivery application built with Node.js microservices, React, 
                      |  payment_svc      |
                      +-------------------+
 
-                        +------------------+
-                        |    Monitoring    |
-                        |   Prometheus &   |
-                        |     Grafana      |
-                        +------------------+
+         +-----------------------------------------------+
+         |              Monitoring Stack                  |
+         |  Prometheus (9090) + Grafana (3000)            |
+         |  cAdvisor + kube-state-metrics                 |
+         |  prom-client (native /metrics per service)     |
+         +-----------------------------------------------+
 ```
 
 ---
@@ -58,9 +59,9 @@ A full-stack food delivery application built with Node.js microservices, React, 
 | Database      | PostgreSQL 16 (one instance, 4 schemas) |
 | Auth          | JWT (jsonwebtoken) + bcryptjs           |
 | Inter-service | axios (REST) & RabbitMQ (Async)         |
-| Monitoring    | Prometheus + Grafana + cAdvisor         |
+| Monitoring    | Prometheus + Grafana + cAdvisor + prom-client + kube-state-metrics |
 | Containers    | Docker + Docker Compose v2              |
-| Orchestration | Kubernetes (Minikube)                   |
+| Orchestration | Kubernetes (K3s / Minikube / any cluster) |
 
 ---
 
@@ -84,19 +85,18 @@ food-delivery-system/
 │   ├── order-service/      # port 3003 -- orders (calls other services)
 │   └── payment-service/    # port 3004 -- payment processing via RabbitMQ consumer
 ├── frontend/               # React SPA served by nginx in production
-├── prometheus/             # Prometheus scrape configuration
 ├── tests/e2e/              # End-to-end API test suite (44 assertions)
 ├── docker-compose.dev.yml  # hot-reload, ports exposed
 ├── docker-compose.test.yml # separate DB, test ports
 ├── docker-compose.prod.yml # no source mounts, restart policies
-└── k8s/                    # 22 Kubernetes manifests (Deployments, Services, ConfigMaps, StatefulSets, RBAC)
+└── k8s/                    # 24 Kubernetes manifests (Deployments, Services, ConfigMaps, StatefulSets, RBAC, Monitoring)
 ```
 
 ---
 
 ## Prerequisites
 
-Install on Ubuntu 22.04:
+Install on Ubuntu / Debian:
 
 ```bash
 # Docker Engine + Compose v2
@@ -114,7 +114,7 @@ sudo apt-get install -y nodejs
 curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
-# minikube
+# Minikube (optional — use any K8s cluster)
 curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
 sudo install minikube-linux-amd64 /usr/local/bin/minikube
 ```
@@ -139,7 +139,6 @@ docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
 # --- Production (nginx, port 80) ---
 # Edit .env and set real secrets first!
 # You MUST add RABBITMQ_DEFAULT_USER and RABBITMQ_DEFAULT_PASS to .env
-# (prod compose enforces required variables with ${VAR:?error} syntax)
 docker compose -f docker-compose.prod.yml up --build -d
 # Frontend: http://localhost:80
 
@@ -149,16 +148,18 @@ docker compose -f docker-compose.dev.yml down
 
 ---
 
-## Quick Start — Kubernetes (Minikube)
+## Quick Start — Kubernetes
+
+The `k8s/` directory contains **24 manifests** that deploy the complete system to any Kubernetes cluster (Minikube, K3s, GKE, etc.).
 
 ```bash
-# 1. Start minikube
+# --- Option A: Minikube ---
 minikube start --driver=docker
 
-# 2. Point your shell at minikube's Docker daemon
+# Point shell at minikube's Docker daemon
 eval $(minikube docker-env)
 
-# 3. Build images inside minikube's registry
+# Build all images inside minikube's registry
 docker build -t food-delivery/user-service:latest       ./services/user-service
 docker build -t food-delivery/restaurant-service:latest ./services/restaurant-service
 docker build -t food-delivery/order-service:latest      ./services/order-service
@@ -166,90 +167,127 @@ docker build -t food-delivery/payment-service:latest    ./services/payment-servi
 docker build -t food-delivery/frontend:latest           ./frontend
 docker build -t food-delivery/postgres:latest           ./database
 
-# 4. Deploy everything
+# Deploy everything
 kubectl apply -f k8s/
 
-# 5. Wait for pods to be ready
+# Wait for pods to be ready
 kubectl get pods --watch
 
-# 6. Open the app
+# Open the app
 minikube service frontend-service
 
-# 7. Access Dashboards (in separate terminals)
-# Option A: Using minikube service (opens browser automatically)
-minikube service grafana-service
-minikube service rabbitmq-service
-minikube service prometheus-service
+# --- Option B: Any cluster (K3s, cloud, etc.) ---
+# Build and push images to a registry (Docker Hub, GHCR, etc.)
+docker build -t <your-registry>/user-service:latest ./services/user-service
+docker push <your-registry>/user-service:latest
+# ... repeat for all services ...
 
-# Option B: Using kubectl port-forward (stable local ports)
-# Grafana: http://localhost:3000 (admin/admin)
-kubectl port-forward svc/grafana-service 3000:3000
-
-# RabbitMQ: http://localhost:15672 (guest/guest)
-kubectl port-forward svc/rabbitmq-service 15672:15672
-
-# Prometheus: http://localhost:9090
-kubectl port-forward svc/prometheus-service 9090:9090
-```
-
----
-
-## Dashboards Reference (K8s)
-
-| Dashboard | Command / URL | Default Credentials |
-| :--- | :--- | :--- |
-| **Frontend** | `NodePort 30080` | N/A |
-| **Grafana** | `NodePort 30001` | `admin` / `admin` |
-| **RabbitMQ** | `NodePort 30003` | `guest` / `guest` |
-| **Prometheus**| `NodePort 30002` | N/A |
-| **K8s Dashboard**| `minikube dashboard` | N/A |
-
----
-
-## Managing the K8s Lifecycle (Daily Workflow)
-
-Once your images are built inside Minikube, you don't need to rebuild them every time. Use these commands to manage the system:
-
-### Start the System
-```bash
-# Apply all manifests in the k8s directory
+# Update image references in k8s/*.yaml to point to your registry
+# Then deploy:
 kubectl apply -f k8s/
+kubectl get pods --watch
 ```
 
-### Stop the System
-```bash
-# Remove all deployments, services, and statefulsets
-kubectl delete -f k8s/
-```
+---
 
-### Restart a Specific Service
-If you change code in a service and want to refresh it:
-1. Re-run the `docker build` command for that specific service.
-2. Run:
-```bash
-kubectl rollout restart deployment <service-name>-deployment
-```
+## Dashboards Reference (Kubernetes)
 
-### Shutdown Minikube
-```bash
-# Completely stop the virtual machine/container running the cluster
-minikube stop
-```
+| Dashboard      | NodePort | Default Credentials |
+|:---------------|:---------|:--------------------|
+| **Frontend**   | `30080`  | N/A                 |
+| **Grafana**    | `30001`  | `admin` / `admin`   |
+| **RabbitMQ**   | `30003`  | `guest` / `guest`   |
+| **Prometheus** | `30002`  | N/A                 |
+
+> **Grafana** comes pre-provisioned with a custom **"Food Delivery System - K3s Cluster"** dashboard. No manual setup needed — the Prometheus data source and dashboard are automatically loaded on startup.
+
+---
+
+## Kubernetes Manifests Reference
+
+| File | Resource | Purpose |
+|:-----|:---------|:--------|
+| `00-secret.yaml` | Secret | DB password, JWT secret, RabbitMQ creds |
+| `01-configmap.yaml` | ConfigMap | DB host, service URLs, init.sql |
+| `02-postgres-statefulset.yaml` | StatefulSet | PostgreSQL 16 with persistent storage |
+| `03-postgres-service.yaml` | Service | ClusterIP for internal DB access |
+| `04-user-deployment.yaml` | Deployment | user-service (2 replicas) |
+| `05-user-service.yaml` | Service | ClusterIP |
+| `06-restaurant-deployment.yaml` | Deployment | restaurant-service (2 replicas) |
+| `07-restaurant-service.yaml` | Service | ClusterIP |
+| `08-order-deployment.yaml` | Deployment | order-service (2 replicas) |
+| `09-order-service.yaml` | Service | ClusterIP |
+| `10-frontend-deployment.yaml` | Deployment | React + nginx frontend |
+| `11-frontend-service.yaml` | Service | NodePort 30080 |
+| `12-payment-deployment.yaml` | Deployment | payment-service (2 replicas) |
+| `13-payment-service.yaml` | Service | ClusterIP |
+| `14-rabbitmq-statefulset.yaml` | StatefulSet | RabbitMQ with persistent storage |
+| `15-rabbitmq-service.yaml` | Service | NodePort 30003 |
+| `16-prometheus-configmap.yaml` | ConfigMap | Prometheus scrape config + relabeling rules |
+| `17-prometheus-deployment.yaml` | Deployment | Prometheus |
+| `18-prometheus-service.yaml` | Service | NodePort 30002 |
+| `19-grafana-deployment.yaml` | StatefulSet | Grafana with persistent storage + provisioned dashboard |
+| `20-grafana-service.yaml` | Service | NodePort 30001 |
+| `21-prometheus-rbac.yaml` | RBAC | ServiceAccount + ClusterRole for Prometheus pod discovery |
+| `22-kube-state-metrics.yaml` | Deployment | Exposes K8s object metrics (replicas, deployments, etc.) |
+| `23-grafana-dashboard.yaml` | ConfigMap | Auto-provisioned Prometheus data source + Food Delivery dashboard |
 
 ---
 
 ## Kubernetes Observability & Monitoring
 
-The Kubernetes deployment includes a fully automated monitoring stack.
+The Kubernetes deployment includes a **fully automated** observability stack that requires zero manual configuration.
 
-### Service Discovery
-Prometheus is configured to automatically discover and scrape microservices. This is achieved via:
-- **Native Instrumentation**: Every microservice now includes `prom-client` and exposes a `/metrics` endpoint with Node.js process and memory stats.
-- **Pod Annotations**: Each microservice deployment includes `prometheus.io/scrape: "true"` and `prometheus.io/port: "<port>"`.
-- **RBAC Security**: The `21-prometheus-rbac.yaml` manifest creates a `ServiceAccount`, `ClusterRole`, and `ClusterRoleBinding` to allow Prometheus to securely list pods across the cluster.
+### What's Included
 
-### Accessing Metrics
-Metrics are collected every 15 seconds. You can verify the health of the monitoring system by checking the **Targets** page in the Prometheus UI.
+| Component | Purpose |
+|:----------|:--------|
+| **Prometheus** | Scrapes metrics every 15s via Kubernetes service discovery |
+| **Grafana** | Pre-provisioned dashboard showing CPU, Memory, Pods, Deployments, Network |
+| **cAdvisor** | Container-level CPU, memory, and network metrics (built into K8s nodes) |
+| **kube-state-metrics** | Kubernetes object metrics (replica counts, deployment status) |
+| **prom-client** | Native Node.js metrics from each microservice (`/metrics` endpoint) |
+
+### How Service Discovery Works
+
+- Each microservice pod has annotations `prometheus.io/scrape: "true"` and `prometheus.io/port: "<port>"`
+- Prometheus uses the Kubernetes API (via RBAC in `21-prometheus-rbac.yaml`) to find and scrape all annotated pods automatically
+- Relabeling rules in `16-prometheus-configmap.yaml` normalize labels (`node`, `namespace`, `pod`) for compatibility with standard dashboards
+
+### Grafana Dashboard
+
+The **"Food Delivery System - K3s Cluster"** dashboard is automatically provisioned and shows:
+- Pods Running / Deployments Up-to-Date / Node Count / Services UP
+- CPU Usage per Service (live graph per pod)
+- Memory Usage per Service (live graph per pod)
+- Total Cluster CPU & Memory (gauges)
+- Node.js Heap Memory from `prom-client` (all 4 services)
+- Deployment Replicas bar chart
+- Network Receive bytes/s
+
+---
+
+## Managing the K8s Lifecycle
+
+```bash
+# Apply / update everything
+kubectl apply -f k8s/
+
+# Remove everything
+kubectl delete -f k8s/
+
+# Restart a specific service after code change
+kubectl rollout restart deployment <service-name>
+
+# Watch pods
+kubectl get pods --watch
+
+# Restart Grafana
+kubectl rollout restart statefulset grafana
+
+# Restart Prometheus
+kubectl rollout restart deployment prometheus
+```
 
 ---
 
@@ -378,22 +416,12 @@ kubectl describe pod <pod-name>
 # Execute a command inside a pod
 kubectl exec -it <pod-name> -- sh
 
-# Delete and re-apply everything (using -f on the directory picks up both Deployments and StatefulSets)
+# Delete and re-apply everything
 kubectl delete -f k8s/ && kubectl apply -f k8s/
-
-# Access the frontend
-minikube service frontend-service
-
-# Get the cluster IP
-minikube ip
-
-# Open the Kubernetes dashboard
-minikube dashboard
 ```
 
 ---
 
-
 ## Author / License
 
-Built as a demo microservices project. MIT License — use it, modify it, learn from it.
+Built as a cloud computing microservices project. MIT License — use it, modify it, learn from it.
