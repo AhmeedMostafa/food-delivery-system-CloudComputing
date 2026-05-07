@@ -1,5 +1,8 @@
-# ====== Production Compose ======
-# No hot-reload, no source mounts. Pre-built images only.
+# ====== Production Compose (The "Live Site") ======
+# Use this for deploying the application for real users.
+# - Security: Most services are hidden; only the frontend/entry points are exposed.
+# - Reliability: Services are set to "restart: unless-stopped" for high availability.
+# - Performance: Uses optimized, pre-built images without source code mounting or hot-reloading.
 # Run: docker compose -f docker-compose.prod.yml up -d
 
 services:

@@ -1,7 +1,9 @@
-# ====== Development Compose ======
-# Hot-reload enabled via nodemon. Uses host-mounted source code.
+# ====== Development Compose (The "Workbench") ======
+# Use this while writing code.
+# - Hot-reloading: Code changes are reflected immediately via volume mounts and nodemon.
+# - Debugging: All services and internal tools (DBs, RabbitMQ, Grafana) are exposed on host ports.
+# - Monitoring: Includes observability tools (Prometheus/Grafana) for dev-time analysis.
 # Run: docker compose -f docker-compose.dev.yml up --build
-# Separate volume (pgdata_dev) so dev/test/prod don't clobber each other.
 
 name: food-delivery-dev
 

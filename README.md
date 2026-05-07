@@ -89,7 +89,7 @@ food-delivery-system/
 ├── docker-compose.dev.yml  # hot-reload, ports exposed
 ├── docker-compose.test.yml # separate DB, test ports
 ├── docker-compose.prod.yml # no source mounts, restart policies
-└── k8s/                    # 21 Kubernetes manifests (Deployments, Services, ConfigMaps)
+└── k8s/                    # 21 Kubernetes manifests (Deployments, Services, ConfigMaps, StatefulSets)
 ```
 
 ---
@@ -307,7 +307,7 @@ kubectl describe pod <pod-name>
 # Execute a command inside a pod
 kubectl exec -it <pod-name> -- sh
 
-# Delete and re-apply everything
+# Delete and re-apply everything (using -f on the directory picks up both Deployments and StatefulSets)
 kubectl delete -f k8s/ && kubectl apply -f k8s/
 
 # Access the frontend

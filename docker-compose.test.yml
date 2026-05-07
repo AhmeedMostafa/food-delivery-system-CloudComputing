@@ -1,8 +1,8 @@
-# ====== Test Compose ======
-# Uses different ports so it can run alongside dev without conflict.
-# Each service just runs its placeholder test script.
-# TODO: replace the placeholder scripts with actual test suites (jest, supertest, etc.)
-#
+# ====== Test Compose (The "Lab") ======
+# Use this for running automated tests.
+# - Isolation: Uses a separate database (food_delivery_test) to avoid messing with dev data.
+# - Automated: Services are configured to run test suites (npm test) and then shut down.
+# - Non-conflicting: Uses different ports so it can run alongside the development environment.
 # Run: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
 
 name: food-delivery-test
