@@ -42,7 +42,6 @@ food-delivery-system/
 ├── .env / .env.example       # Environment variables (secrets, DB creds)
 ├── README.md                 # Quick-start instructions
 ├── TECHNICAL_ARCHITECTURE.md # Design decisions deep-dive
-├── CLAUDE.md                 # AI assistant constraints & feature specs
 ├── setup_env.sh              # One-click Ubuntu dependency installer
 │
 ├── database/
