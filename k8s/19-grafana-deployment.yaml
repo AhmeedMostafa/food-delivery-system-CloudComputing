@@ -1,8 +1,9 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: grafana
 spec:
+  serviceName: "grafana-service"
   replicas: 1
   selector:
     matchLabels:
@@ -12,6 +13,9 @@ spec:
       labels:
         app: grafana
     spec:
+      securityContext:
+        fsGroup: 472 # Grafana default user group
+        runAsUser: 472
       containers:
       - name: grafana
         image: grafana/grafana:latest
@@ -28,10 +32,15 @@ spec:
             cpu: "100m"
           limits:
             memory: "512Mi"
-            cpu: "250m"
+            cpu: "500m"
         volumeMounts:
-        - name: grafana-storage-volume
+        - name: grafana-data
           mountPath: /var/lib/grafana
-      volumes:
-      - name: grafana-storage-volume
-        emptyDir: {} # Using emptyDir for simplicity, PVC recommended for prod
+  volumeClaimTemplates:
+  - metadata:
+      name: grafana-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
