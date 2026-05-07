@@ -85,14 +85,14 @@ data:
           "title": "CPU Usage per Service",
           "type": "timeseries",
           "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
-          "targets": [{"expr": "sum(rate(container_cpu_usage_seconds_total{image!='',kubernetes_namespace='default'}[5m])) by (kubernetes_pod_name)", "legendFormat": "{{kubernetes_pod_name}}"}]
+          "targets": [{"expr": "sum(rate(container_cpu_usage_seconds_total{image!='', container!='POD', container!=''}[5m])) by (pod)", "legendFormat": "{{pod}}"}]
         },
         {
           "id": 6,
           "title": "Memory Usage per Service",
           "type": "timeseries",
           "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
-          "targets": [{"expr": "sum(container_memory_working_set_bytes{image!='',kubernetes_namespace='default'}) by (kubernetes_pod_name)", "legendFormat": "{{kubernetes_pod_name}}"}],
+          "targets": [{"expr": "sum(container_memory_working_set_bytes{image!='', container!='POD', container!=''})) by (pod)", "legendFormat": "{{pod}}"}],
           "fieldConfig": {"defaults": {"unit": "bytes"}}
         },
         {
@@ -132,7 +132,7 @@ data:
           "title": "Network Receive (bytes/s)",
           "type": "timeseries",
           "gridPos": {"h": 6, "w": 12, "x": 12, "y": 18},
-          "targets": [{"expr": "sum(rate(container_network_receive_bytes_total{kubernetes_namespace='default'}[5m])) by (kubernetes_pod_name)", "legendFormat": "{{kubernetes_pod_name}}"}],
+          "targets": [{"expr": "sum(rate(container_network_receive_bytes_total[5m])) by (pod)", "legendFormat": "{{pod}}"}],
           "fieldConfig": {"defaults": {"unit": "Bps"}}
         }
       ],
