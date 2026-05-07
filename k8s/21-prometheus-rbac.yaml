@@ -15,7 +15,7 @@ metadata:
   name: prometheus-role
 rules:
 - apiGroups: [""]
-  resources: ["nodes", "nodes/proxy", "nodes/metrics", "nodes/stats", "services", "endpoints", "pods"]
+  resources: ["nodes", "nodes/proxy", "nodes/metrics", "nodes/stats", "nodes/status", "services", "endpoints", "pods"]
   verbs: ["get", "list", "watch"]
 - apiGroups: ["extensions", "apps"]
   resources: ["deployments", "statefulsets", "replicasets", "ingresses"]
