@@ -198,10 +198,10 @@ kubectl port-forward svc/prometheus-service 9090:9090
 
 | Dashboard | Command / URL | Default Credentials |
 | :--- | :--- | :--- |
-| **Frontend** | `minikube service frontend-service` | N/A |
-| **Grafana** | `localhost:3000` | `admin` / `admin` |
-| **RabbitMQ** | `localhost:15672` | `guest` / `guest` |
-| **Prometheus**| `localhost:9090` | N/A |
+| **Frontend** | `NodePort 30080` | N/A |
+| **Grafana** | `NodePort 30001` | `admin` / `admin` |
+| **RabbitMQ** | `NodePort 30003` | `guest` / `guest` |
+| **Prometheus**| `NodePort 30002` | N/A |
 | **K8s Dashboard**| `minikube dashboard` | N/A |
 
 ---

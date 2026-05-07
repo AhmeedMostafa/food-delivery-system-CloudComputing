@@ -334,9 +334,9 @@ system to Minikube:
 | `restaurant-service` | ClusterIP            | Internal — nginx proxies to it                        |
 | `order-service`      | ClusterIP            | Internal — nginx proxies to it                        |
 | `payment-service`    | ClusterIP            | Internal — nginx proxies to it                        |
-| `rabbitmq-service`   | Headless             | StatefulSet needs stable DNS                          |
-| `prometheus-service` | ClusterIP            | Internal monitoring                                   |
-| `grafana-service`    | ClusterIP            | Internal dashboards                                   |
+| `rabbitmq-service`   | **NodePort** (30003) | Exposed management dashboard                          |
+| `prometheus-service` | **NodePort** (30002) | Exposed metrics engine                                |
+| `grafana-service`    | **NodePort** (30001) | Exposed visual dashboards                             |
 
 ### Replicas & Health Checks
 

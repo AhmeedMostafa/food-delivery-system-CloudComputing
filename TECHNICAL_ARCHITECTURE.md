@@ -164,9 +164,7 @@ The project includes 22 K8s manifests in the `/k8s` directory:
 - **Deployments:** Define the desired state. Backend services are configured
   with `replicas: 2` for high availability. Each has readiness and liveness
   probes hitting the `/health` endpoint.
-- **Services:** `ClusterIP` for internal services (only reachable within the
-  cluster). `NodePort` (30080) for the frontend (accessible from outside via
-  `minikube service frontend-service`).
+- **Services:** `ClusterIP` for internal backend services. `NodePort` for the frontend (30080) and monitoring stack (30001-30003), allowing external access via a reverse proxy or Node IP.
 - **ConfigMaps:** Centralize environment variables (DB host, service URLs) and
   embed the `init.sql` for Postgres initialization.
 - **Secrets:** Store sensitive data (DB password, JWT secret, RabbitMQ
