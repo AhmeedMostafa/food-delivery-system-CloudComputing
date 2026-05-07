@@ -204,6 +204,37 @@ kubectl port-forward svc/prometheus-service 9090:9090
 | **Prometheus**| `localhost:9090` | N/A |
 | **K8s Dashboard**| `minikube dashboard` | N/A |
 
+---
+
+## Managing the K8s Lifecycle (Daily Workflow)
+
+Once your images are built inside Minikube, you don't need to rebuild them every time. Use these commands to manage the system:
+
+### Start the System
+```bash
+# Apply all manifests in the k8s directory
+kubectl apply -f k8s/
+```
+
+### Stop the System
+```bash
+# Remove all deployments, services, and statefulsets
+kubectl delete -f k8s/
+```
+
+### Restart a Specific Service
+If you change code in a service and want to refresh it:
+1. Re-run the `docker build` command for that specific service.
+2. Run:
+```bash
+kubectl rollout restart deployment <service-name>-deployment
+```
+
+### Shutdown Minikube
+```bash
+# Completely stop the virtual machine/container running the cluster
+minikube stop
+```
 
 ---
 
