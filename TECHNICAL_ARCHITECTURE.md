@@ -65,7 +65,7 @@ step-by-step lifecycle:
 | `/services`               | Contains the source code for the 4 microservices. Each is a standalone Node.js/Express app.                                        |
 | `/frontend`               | A React single-page application (SPA) built with Vite and styled with modern CSS. Served by nginx in production.                   |
 | `/database`               | Contains `Dockerfile` and `init.sql`, the source of truth for the database schema and seed data.                                   |
-| `/k8s`                    | 21 Kubernetes manifests for deploying the system to a Minikube cluster (Deployments, Services, ConfigMaps, Secrets, StatefulSets). |
+| `/k8s`                    | 22 Kubernetes manifests for deploying the system to a cluster (Deployments, Services, ConfigMaps, Secrets, StatefulSets, RBAC). |
 | `/prometheus`             | Prometheus scrape configuration (`prometheus.yml`).                                                                                |
 | `/tests/e2e`              | End-to-end test suite (`run-e2e.js`) — 44 assertions against the live stack.                                                       |
 | `docker-compose.dev.yml`  | Development environment — hot-reloading with nodemon, ports exposed.                                                               |
@@ -159,7 +159,7 @@ The frontend uses a **3-stage Dockerfile**:
 
 ### Kubernetes & High Availability
 
-The project includes 21 K8s manifests in the `/k8s` directory:
+The project includes 22 K8s manifests in the `/k8s` directory:
 
 - **Deployments:** Define the desired state. Backend services are configured
   with `replicas: 2` for high availability. Each has readiness and liveness
@@ -171,13 +171,12 @@ The project includes 21 K8s manifests in the `/k8s` directory:
   embed the `init.sql` for Postgres initialization.
 - **Secrets:** Store sensitive data (DB password, JWT secret, RabbitMQ
   credentials) base64-encoded.
-- **StatefulSets:** Used for RabbitMQ and PostgreSQL (require stable storage via
-  PersistentVolumeClaims).
+- **StatefulSets:** Used for RabbitMQ and PostgreSQL (require stable storage via PersistentVolumeClaims).
+- **RBAC:** Grants Prometheus permission to list pods via a `ServiceAccount`, `ClusterRole`, and `ClusterRoleBinding` (see `21-prometheus-rbac.yaml`).
 
 ### Monitoring & Observability
 
-- **Prometheus:** Scrapes metrics every 15 seconds from services, nodes, and
-  cAdvisor.
+- **Prometheus:** Scrapes metrics every 15 seconds. Uses **Kubernetes Service Discovery** (via pod annotations like `prometheus.io/scrape`) to automatically find new service replicas.
 - **Grafana:** Provides visual dashboards for system metrics (login:
   admin/admin).
 - **cAdvisor:** Collects container-level resource usage (CPU, memory, network

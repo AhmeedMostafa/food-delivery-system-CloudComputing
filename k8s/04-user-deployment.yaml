@@ -17,6 +17,9 @@ spec:
     metadata:
       labels:
         app: user-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3001"
     spec:
       containers:
         - name: user-service

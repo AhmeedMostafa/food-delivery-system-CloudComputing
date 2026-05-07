@@ -66,7 +66,7 @@ food-delivery-system/
 ├── docker-compose.test.yml   # Testing environment (isolated DB)
 ├── docker-compose.prod.yml   # Production environment (nginx, no mounts)
 │
-├── k8s/                      # 21 Kubernetes manifest files
+├── k8s/                      # 22 Kubernetes manifest files
 ├── prometheus/               # Prometheus scrape config
 └── tests/e2e/                # End-to-end test suite
 ```
@@ -322,6 +322,7 @@ system to Minikube:
 | **Deployment**  | Defines pod templates + replica count                             | `04, 06, 08, 10, 12, 17, 19`                                   |
 | **Service**     | Network endpoint for accessing pods                               | `03, 05, 07, 09, 11, 13, 15, 18, 20`                           |
 | **StatefulSet** | Like Deployment but with stable storage (for RabbitMQ & Postgres) | `02-postgres-statefulset.yaml`, `14-rabbitmq-statefulset.yaml` |
+| **RBAC**        | Security permissions for Prometheus to scrape the cluster        | `21-prometheus-rbac.yaml`                                      |
 
 ### Service Types
 
@@ -421,6 +422,7 @@ Browser → nginx:80
 | **Prometheus** | 9090 | Scrapes metrics every 15s from services and cAdvisor |
 | **Grafana**    | 3000 | Visual dashboards (login: admin/admin)               |
 | **cAdvisor**   | 8080 | Collects container CPU, memory, network stats        |
+| **K8s RBAC**   | N/A  | Allows Prometheus to discover services via the API   |
 
 ---
 

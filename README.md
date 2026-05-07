@@ -89,7 +89,7 @@ food-delivery-system/
 ├── docker-compose.dev.yml  # hot-reload, ports exposed
 ├── docker-compose.test.yml # separate DB, test ports
 ├── docker-compose.prod.yml # no source mounts, restart policies
-└── k8s/                    # 21 Kubernetes manifests (Deployments, Services, ConfigMaps, StatefulSets)
+└── k8s/                    # 22 Kubernetes manifests (Deployments, Services, ConfigMaps, StatefulSets, RBAC)
 ```
 
 ---
@@ -235,6 +235,20 @@ kubectl rollout restart deployment <service-name>-deployment
 # Completely stop the virtual machine/container running the cluster
 minikube stop
 ```
+
+---
+
+## Kubernetes Observability & Monitoring
+
+The Kubernetes deployment includes a fully automated monitoring stack.
+
+### Service Discovery
+Prometheus is configured to automatically discover and scrape microservices. This is achieved via:
+- **Pod Annotations**: Each microservice deployment includes `prometheus.io/scrape: "true"` and `prometheus.io/port: "<port>"`.
+- **RBAC Security**: The `21-prometheus-rbac.yaml` manifest creates a `ServiceAccount`, `ClusterRole`, and `ClusterRoleBinding` to allow Prometheus to securely list pods across the cluster.
+
+### Accessing Metrics
+Metrics are collected every 15 seconds. You can verify the health of the monitoring system by checking the **Targets** page in the Prometheus UI.
 
 ---
 
