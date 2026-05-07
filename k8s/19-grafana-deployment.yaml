@@ -14,8 +14,17 @@ spec:
         app: grafana
     spec:
       securityContext:
-        fsGroup: 472 # Grafana default user group
+        fsGroup: 472
         runAsUser: 472
+      initContainers:
+      - name: init-dashboard-dir
+        image: busybox
+        command: ['sh', '-c', 'mkdir -p /var/lib/grafana/dashboards && cp /tmp/dashboards/*.json /var/lib/grafana/dashboards/ 2>/dev/null || true']
+        volumeMounts:
+        - name: grafana-data
+          mountPath: /var/lib/grafana
+        - name: grafana-food-delivery-dashboard
+          mountPath: /tmp/dashboards
       containers:
       - name: grafana
         image: grafana/grafana:latest
@@ -26,6 +35,8 @@ spec:
           value: admin
         - name: GF_SECURITY_ADMIN_PASSWORD
           value: admin
+        - name: GF_PATHS_PROVISIONING
+          value: /etc/grafana/provisioning
         resources:
           requests:
             memory: "256Mi"
@@ -36,6 +47,22 @@ spec:
         volumeMounts:
         - name: grafana-data
           mountPath: /var/lib/grafana
+        - name: grafana-provisioning-datasource
+          mountPath: /etc/grafana/provisioning/datasources
+        - name: grafana-dashboard-provider
+          mountPath: /etc/grafana/provisioning/dashboards
+        - name: grafana-food-delivery-dashboard
+          mountPath: /tmp/dashboards
+      volumes:
+      - name: grafana-provisioning-datasource
+        configMap:
+          name: grafana-provisioning-datasource
+      - name: grafana-dashboard-provider
+        configMap:
+          name: grafana-dashboard-provider
+      - name: grafana-food-delivery-dashboard
+        configMap:
+          name: grafana-food-delivery-dashboard
   volumeClaimTemplates:
   - metadata:
       name: grafana-data

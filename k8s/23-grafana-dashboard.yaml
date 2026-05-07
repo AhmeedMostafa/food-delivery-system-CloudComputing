@@ -1,0 +1,141 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning-datasource
+  labels:
+    grafana_datasource: "1"
+data:
+  prometheus.yaml: |-
+    apiVersion: 1
+    datasources:
+    - name: Prometheus
+      type: prometheus
+      access: proxy
+      url: http://prometheus-service:9090
+      isDefault: true
+      editable: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  labels:
+    grafana_dashboard: "1"
+data:
+  dashboards.yaml: |-
+    apiVersion: 1
+    providers:
+    - name: 'default'
+      orgId: 1
+      folder: 'Food Delivery'
+      type: file
+      disableDeletion: false
+      updateIntervalSeconds: 10
+      options:
+        path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-food-delivery-dashboard
+  labels:
+    grafana_dashboard: "1"
+data:
+  food-delivery.json: |-
+    {
+      "title": "Food Delivery System - K3s Cluster",
+      "uid": "food-delivery-k3s",
+      "timezone": "browser",
+      "refresh": "30s",
+      "panels": [
+        {
+          "id": 1,
+          "title": "Pods Running",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+          "targets": [{"expr": "count(kube_pod_info{exported_namespace='default'})", "legendFormat": "Pods"}],
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": 0}]}}}
+        },
+        {
+          "id": 2,
+          "title": "Deployments Up-to-Date",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+          "targets": [{"expr": "sum(kube_deployment_status_replicas_updated)", "legendFormat": "Updated"}],
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": 0}]}}}
+        },
+        {
+          "id": 3,
+          "title": "Number of Nodes",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+          "targets": [{"expr": "count(kube_node_info)", "legendFormat": "Nodes"}],
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": 0}]}}}
+        },
+        {
+          "id": 4,
+          "title": "Services UP",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+          "targets": [{"expr": "count(up{job='kubernetes-pods'} == 1)", "legendFormat": "UP"}],
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": 0}]}}}
+        },
+        {
+          "id": 5,
+          "title": "CPU Usage per Service",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+          "targets": [{"expr": "sum(rate(container_cpu_usage_seconds_total{image!='',kubernetes_namespace='default'}[5m])) by (kubernetes_pod_name)", "legendFormat": "{{kubernetes_pod_name}}"}]
+        },
+        {
+          "id": 6,
+          "title": "Memory Usage per Service",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+          "targets": [{"expr": "sum(container_memory_working_set_bytes{image!='',kubernetes_namespace='default'}) by (kubernetes_pod_name)", "legendFormat": "{{kubernetes_pod_name}}"}],
+          "fieldConfig": {"defaults": {"unit": "bytes"}}
+        },
+        {
+          "id": 7,
+          "title": "Total Cluster CPU Usage",
+          "type": "gauge",
+          "gridPos": {"h": 6, "w": 6, "x": 0, "y": 12},
+          "targets": [{"expr": "sum(rate(container_cpu_usage_seconds_total{image!=''}[5m]))", "legendFormat": "CPU"}],
+          "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "yellow", "value": 0.7}, {"color": "red", "value": 0.9}]}}}
+        },
+        {
+          "id": 8,
+          "title": "Total Cluster Memory Usage",
+          "type": "gauge",
+          "gridPos": {"h": 6, "w": 6, "x": 6, "y": 12},
+          "targets": [{"expr": "sum(container_memory_working_set_bytes{image!=''})", "legendFormat": "Memory"}],
+          "fieldConfig": {"defaults": {"unit": "bytes", "thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "yellow", "value": 1073741824}, {"color": "red", "value": 2147483648}]}}}
+        },
+        {
+          "id": 9,
+          "title": "Node.js Heap Memory (prom-client)",
+          "type": "timeseries",
+          "gridPos": {"h": 6, "w": 12, "x": 12, "y": 12},
+          "targets": [{"expr": "nodejs_heap_size_used_bytes", "legendFormat": "{{app}}"}],
+          "fieldConfig": {"defaults": {"unit": "bytes"}}
+        },
+        {
+          "id": 10,
+          "title": "Deployment Replicas",
+          "type": "bargauge",
+          "gridPos": {"h": 6, "w": 12, "x": 0, "y": 18},
+          "targets": [{"expr": "kube_deployment_status_replicas_available", "legendFormat": "{{deployment}}"}],
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": 0}, {"color": "green", "value": 1}]}}}
+        },
+        {
+          "id": 11,
+          "title": "Network Receive (bytes/s)",
+          "type": "timeseries",
+          "gridPos": {"h": 6, "w": 12, "x": 12, "y": 18},
+          "targets": [{"expr": "sum(rate(container_network_receive_bytes_total{kubernetes_namespace='default'}[5m])) by (kubernetes_pod_name)", "legendFormat": "{{kubernetes_pod_name}}"}],
+          "fieldConfig": {"defaults": {"unit": "Bps"}}
+        }
+      ],
+      "schemaVersion": 36,
+      "version": 1
+    }
