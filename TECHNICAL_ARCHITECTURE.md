@@ -24,8 +24,7 @@ The most complex flow in the system is the order placement. Here is the step-by-
 5.  **Atomic Transaction:** Once validated, the Order Service opens a PostgreSQL transaction to:
     *   Insert a record into `order_svc.orders`.
     *   Insert multiple records into `order_svc.order_items`, capturing a snapshot of the name and price at the time of purchase.
-6.  **Asynchronous Payment Trigger:** After the DB commit, the Order Service fires a request to `payment-service`.
-    *   *Implementation Note:* This is currently a "fire-and-forget" call. In a production-grade system, this would typically use a **Saga Pattern** or a Message Broker (RabbitMQ/Kafka) to ensure eventual consistency if the payment service is down.
+6.  **Asynchronous Payment Trigger (RabbitMQ):** After the DB commit, the Order Service publishes a message to the `payment_queue` on RabbitMQ containing `{order_id, user_id, amount, method}`. The Payment Service consumes this message asynchronously and records a `COMPLETED` transaction in `payment_svc.transactions`. If the message is malformed or processing fails, it is routed to a **Dead Letter Queue** (`payment_queue_dead`) for manual review.
 7.  **Final Confirmation:** The user receives a `201 Created` status with the full order details.
 
 ---
@@ -36,57 +35,101 @@ The most complex flow in the system is the order placement. Here is the step-by-
 | Directory | Purpose |
 | :--- | :--- |
 | `/services` | Contains the source code for the 4 microservices. Each is a standalone Node.js/Express app. |
-| `/frontend` | A React single-page application (SPA) built with Vite and styled with modern CSS. |
-| `/database` | Contains `init.sql`, the source of truth for the database schema and seed data. |
-| `/k8s` | Kubernetes manifests for deploying the system to a production-like cluster. |
-| `docker-compose.dev.yml` | Orchestration for local development with hot-reloading (nodemon). |
+| `/frontend` | A React single-page application (SPA) built with Vite and styled with modern CSS. Served by nginx in production. |
+| `/database` | Contains `Dockerfile` and `init.sql`, the source of truth for the database schema and seed data. |
+| `/k8s` | 21 Kubernetes manifests for deploying the system to a Minikube cluster (Deployments, Services, ConfigMaps, Secrets, StatefulSet). |
+| `/prometheus` | Prometheus scrape configuration (`prometheus.yml`). |
+| `/tests/e2e` | End-to-end test suite (`run-e2e.js`) — 44 assertions against the live stack. |
+| `docker-compose.dev.yml` | Development environment — hot-reloading with nodemon, ports exposed. |
+| `docker-compose.test.yml` | Test environment — isolated DB, runs `npm test` in each service. |
+| `docker-compose.prod.yml` | Production environment — nginx frontend, no source mounts, restart policies, strict env var requirements. |
 
 ### Core Logic Files
-*   **`services/order-service/src/routes/orders.js`**: The "brain" of the ordering process. It coordinates inter-service calls and manages the order state machine (`PLACED` -> `ACCEPTED` -> `PREPARING` -> `DELIVERED`).
-*   **`services/user-service/src/middleware/auth.js`**: Implements JWT verification. It ensures that only authenticated users can access protected resources like `/api/users/me`.
+*   **`services/order-service/src/routes/orders.js`**: The "brain" of the ordering process. It coordinates inter-service calls, manages the order state machine (`PLACED` -> `ACCEPTED` -> `PREPARING` -> `OUT_FOR_DELIVERY` -> `DELIVERED`), and publishes payment messages to RabbitMQ.
+*   **`services/order-service/src/rabbitmq.js`**: Connects to RabbitMQ with exponential backoff retry and auto-reconnect. Produces messages to `payment_queue`.
+*   **`services/payment-service/src/rabbitmq.js`**: Consumes messages from `payment_queue`. Sets up Dead Letter Exchange (DLX) infrastructure for failed message handling.
+*   **`services/user-service/src/middleware/auth.js`**: Implements JWT verification (`requireAuth`) and role-based access (`requireRole`). Ensures only authenticated users access protected resources.
 *   **`frontend/src/context/AuthContext.jsx`**: Manages the global authentication state in the browser, storing the JWT and user profile.
+*   **`frontend/nginx.conf`**: Production reverse proxy — routes `/api/*` requests to the correct backend service.
 
 ---
 
 ## 3. Data & Communication Layer
 
 ### Data Models (PostgreSQL Schemas)
-We use a **Database-per-Service** pattern, but for simplicity in this project, they share a single PostgreSQL instance separated by **Postgres Schemas**.
+We use a **Database-per-Service** pattern, but for simplicity in this project, they share a single PostgreSQL instance separated by **4 Postgres Schemas**.
 
 | Schema | Table | Description |
 | :--- | :--- | :--- |
-| `user_svc` | `users` | Stores credentials, profile data, and roles (`customer`, `owner`, `driver`). |
+| `user_svc` | `users` | Stores credentials, profile data, and roles (`customer`, `restaurant_owner`, `delivery_driver`). |
 | `restaurant_svc` | `restaurants` | Stores restaurant metadata (name, cuisine, rating). |
 | `restaurant_svc` | `menu_items` | Links food items to restaurants with pricing and availability. |
-| `order_svc` | `orders` | The header record for an order, including status and total price. |
+| `order_svc` | `orders` | The header record for an order, including status, total price, delivery address, and assigned driver. |
 | `order_svc` | `order_items` | Snapshot of items purchased (includes price at time of order). |
-| `payment_svc` | `transactions` | Ledger of all payment attempts and their status. |
+| `payment_svc` | `transactions` | Ledger of all payment attempts, their status, method, and amount. |
 
 ### Communication Strategy
-1.  **Internal (Service-to-Service):** Synchronous REST calls via `axios`. Services discover each other using environment variables or K8s internal DNS (e.g., `http://user-service:3001`).
-2.  **External (Client-to-Service):** The Frontend communicates with services via REST. Authentication is handled by passing a Bearer Token (JWT) in the `Authorization` header.
+1.  **Synchronous (Service-to-Service):** REST calls via `axios`. Services discover each other using environment variables (Docker Compose) or K8s internal DNS (e.g., `http://user-service:3001`).
+2.  **Asynchronous (Order → Payment):** RabbitMQ message queue. The Order Service publishes to `payment_queue`; the Payment Service consumes and processes. Failed messages are routed to a Dead Letter Queue.
+3.  **External (Client-to-Service):** The Frontend communicates with services via REST. In production, nginx reverse-proxies all `/api/*` calls. Authentication is handled by passing a Bearer Token (JWT) in the `Authorization` header.
 
 ---
 
 ## 4. Infrastructure & Cloud Integration
 
 ### Docker Strategy
-*   **Development:** Uses `volumes` to mount local source code into the container. `nodemon` watches for changes, allowing for a "save-and-refresh" workflow without rebuilding images.
-*   **Production:** Uses **Multi-stage builds**. The `builder` stage installs dependencies, and the final image only contains the necessary runtime files, keeping the image size small and secure.
+*   **Development (`docker-compose.dev.yml`):** Uses `volumes` to mount local source code into the container. `nodemon` watches for changes, allowing for a "save-and-refresh" workflow without rebuilding images. Builds include dev dependencies.
+*   **Test (`docker-compose.test.yml`):** Uses a separate database (`food_delivery_test`) and different ports (4001-4004) so it can run alongside dev. Each service runs `npm test` as its command.
+*   **Production (`docker-compose.prod.yml`):** Uses **Multi-stage builds**. Only production dependencies are installed. The frontend is built into static files and served by nginx. Environment variables use `${VAR:?error}` syntax to enforce explicit configuration. Services have `restart: unless-stopped` policies.
+
+### Docker Image Build Strategy
+All backend services use a **2-stage Dockerfile**:
+1.  **deps stage:** Installs npm packages. Conditionally installs dev dependencies when `NODE_ENV=development` (for nodemon support in dev).
+2.  **runtime stage:** Copies only `node_modules`, `src/`, and `package.json` into a clean Alpine image. Runs as `USER node` (non-root) for security.
+
+The frontend uses a **3-stage Dockerfile**:
+1.  **builder:** Installs all dependencies (used as the target for dev compose).
+2.  **build-stage:** Runs `vite build` to produce optimized static files.
+3.  **runtime:** Copies the built files into an `nginx:alpine` image with a custom `nginx.conf`.
 
 ### Kubernetes & High Availability
-The project includes K8s manifests in the `/k8s` directory:
-*   **Deployments:** Define the desired state. Services like `user-service` are configured with `replicas: 2` to ensure high availability.
-*   **Services:** Act as load balancers, distributing traffic across the available pods of a microservice.
-*   **ConfigMaps:** Centralize environment variables (DB URLs, Port numbers) so they can be managed outside the container images.
+The project includes 21 K8s manifests in the `/k8s` directory:
+*   **Deployments:** Define the desired state. Backend services are configured with `replicas: 2` for high availability. Each has readiness and liveness probes hitting the `/health` endpoint.
+*   **Services:** `ClusterIP` for internal services (only reachable within the cluster). `NodePort` (30080) for the frontend (accessible from outside via `minikube service frontend-service`).
+*   **ConfigMaps:** Centralize environment variables (DB host, service URLs) and embed the `init.sql` for Postgres initialization.
+*   **Secrets:** Store sensitive data (DB password, JWT secret, RabbitMQ credentials) base64-encoded.
+*   **StatefulSet:** Used for RabbitMQ (requires stable storage via PersistentVolumeClaim).
+
+### Monitoring & Observability
+*   **Prometheus:** Scrapes metrics every 15 seconds from services, nodes, and cAdvisor.
+*   **Grafana:** Provides visual dashboards for system metrics (login: admin/admin).
+*   **cAdvisor:** Collects container-level resource usage (CPU, memory, network I/O).
 
 ---
 
-## 5. Technical Glossary
+## 5. User Roles & Access Control
+
+| Role | Access | Frontend Pages |
+| :--- | :--- | :--- |
+| `customer` | Browse restaurants, add to cart, place orders, view order history, edit profile | Home, Restaurant, Cart, Orders, Profile |
+| `restaurant_owner` | Manage their restaurant menu, view/accept incoming orders, assign drivers | Dashboard, Profile |
+| `delivery_driver` | View assigned deliveries, update order status | Deliveries, Profile |
+
+The JWT token includes `id`, `email`, `role`, and `restaurant_id` (for owners). The frontend uses route guards to enforce access based on role.
+
+---
+
+## 6. Technical Glossary
 
 *   **JWT (JSON Web Token):** A stateless authentication mechanism. The server signs a token containing user data, and the client sends it back with every request. No session storage is needed on the server.
-*   **Middleware:** Functions that execute during the request-response cycle (e.g., logging, auth checks). In this project, `requireAuth` is a key middleware.
-*   **Dependency Injection:** While not using a formal DI container, the services use "Config Injection" where database pools and URLs are passed into routes via imports and environment variables.
+*   **Middleware:** Functions that execute during the request-response cycle (e.g., logging, auth checks). In this project, `requireAuth` and `requireRole` are key middleware.
+*   **RabbitMQ:** An open-source message broker that enables asynchronous communication between services. The Order Service *produces* messages; the Payment Service *consumes* them.
+*   **Dead Letter Queue (DLQ):** A special queue where messages that fail processing are routed (via a Dead Letter Exchange). This prevents data loss and allows manual review of failures.
+*   **Multi-stage Docker Build:** A Dockerfile technique using multiple `FROM` statements to separate build-time concerns from runtime, resulting in smaller and more secure final images.
+*   **StatefulSet:** A Kubernetes workload API object for managing stateful applications (like RabbitMQ) that require stable storage and network identity.
+*   **NodePort:** A Kubernetes Service type that exposes a service on a static port on every node's IP, making it accessible from outside the cluster.
+*   **ConfigMap / Secret:** Kubernetes objects for injecting configuration and sensitive data into pods without baking them into container images.
+*   **Readiness/Liveness Probes:** Kubernetes health checks. Readiness determines if a pod should receive traffic; liveness determines if a pod should be restarted.
 *   **CRUD:** Create, Read, Update, Delete. The standard operations performed on most entities (e.g., creating a user, reading a menu).
 *   **SPA (Single Page Application):** The frontend approach where the browser loads one HTML page and dynamically updates the content as the user interacts, providing a fluid experience.
 *   **Statelessness:** The architectural principle where the server does not store any client context between requests. This is what allows us to scale to 2 or 200 replicas of the `user-service` seamlessly.

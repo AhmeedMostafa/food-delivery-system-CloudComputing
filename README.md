@@ -1,6 +1,6 @@
 # FoodieGo — Food Delivery Microservices System
 
-A full-stack food delivery application built with Node.js microservices, React, PostgreSQL, Docker, and Kubernetes. Built on Windows, designed to run on Ubuntu 22.04 + Minikube.
+A full-stack food delivery application built with Node.js microservices, React, PostgreSQL, Docker, and Kubernetes. Designed to run on Ubuntu 22.04 + Minikube.
 
 ---
 
@@ -73,18 +73,23 @@ food-delivery-system/
 ├── .env.example            # copy to .env and fill in secrets
 ├── README.md
 ├── TECHNICAL_ARCHITECTURE.md # Deep-dive into design decisions
+├── TEAM_PROJECT_GUIDE.md   # Full team onboarding guide
+├── setup_env.sh            # One-click Ubuntu dependency installer
 ├── database/
+│   ├── Dockerfile          # Custom postgres image with init.sql baked in
 │   └── init.sql            # schema + seed data (4 restaurants, 9 menu items, drivers)
 ├── services/
 │   ├── user-service/       # port 3001 -- registration, login, JWT, driver lookups
 │   ├── restaurant-service/ # port 3002 -- restaurants + menus
 │   ├── order-service/      # port 3003 -- orders (calls other services)
-│   └── payment-service/    # port 3004 -- mock payment processing
+│   └── payment-service/    # port 3004 -- payment processing via RabbitMQ consumer
 ├── frontend/               # React SPA served by nginx in production
+├── prometheus/             # Prometheus scrape configuration
+├── tests/e2e/              # End-to-end API test suite (44 assertions)
 ├── docker-compose.dev.yml  # hot-reload, ports exposed
 ├── docker-compose.test.yml # separate DB, test ports
 ├── docker-compose.prod.yml # no source mounts, restart policies
-└── k8s/                    # Kubernetes manifests (Deployments, Services, ConfigMaps)
+└── k8s/                    # 21 Kubernetes manifests (Deployments, Services, ConfigMaps)
 ```
 
 ---
@@ -133,6 +138,8 @@ docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
 
 # --- Production (nginx, port 80) ---
 # Edit .env and set real secrets first!
+# You MUST add RABBITMQ_DEFAULT_USER and RABBITMQ_DEFAULT_PASS to .env
+# (prod compose enforces required variables with ${VAR:?error} syntax)
 docker compose -f docker-compose.prod.yml up --build -d
 # Frontend: http://localhost:80
 
@@ -157,6 +164,7 @@ docker build -t food-delivery/restaurant-service:latest ./services/restaurant-se
 docker build -t food-delivery/order-service:latest      ./services/order-service
 docker build -t food-delivery/payment-service:latest    ./services/payment-service
 docker build -t food-delivery/frontend:latest           ./frontend
+docker build -t food-delivery/postgres:latest           ./database
 
 # 4. Deploy everything
 kubectl apply -f k8s/
@@ -272,6 +280,9 @@ The database seed includes pre-built accounts for easy testing:
 | RESTAURANT_SERVICE_URL | http://restaurant-service:3002 | Internal URL for restaurant-service|
 | PAYMENT_SERVICE_URL    | http://payment-service:3004    | Internal URL for payment-service   |
 | NODE_ENV               | development                    | Node environment                   |
+| RABBITMQ_DEFAULT_USER  | guest                          | RabbitMQ admin username             |
+| RABBITMQ_DEFAULT_PASS  | guest                          | RabbitMQ admin password             |
+| RABBITMQ_URL           | amqp://rabbitmq:5672           | AMQP connection string             |
 
 ---
 
@@ -311,29 +322,6 @@ minikube dashboard
 
 ---
 
-## Troubleshooting
-
-**1. Postgres won't start / "data directory has wrong ownership"**
-> The emptyDir volume gets reused between pod restarts. Delete the postgres pod to force a fresh emptyDir:
-> `kubectl delete pod -l app=postgres`
-
-**2. Services can't connect to postgres ("ECONNREFUSED")**
-> Postgres takes a few seconds to accept connections after starting. The services retry on startup but if they crash-loop, check:
-> `kubectl logs -l app=postgres`
-> Make sure the ConfigMap has the right DB_HOST value (`postgres-service`).
-
-**3. docker compose: "network food_net_dev declared as external"**
-> You probably have leftover networks from a previous run. Run:
-> `docker compose -f docker-compose.dev.yml down --volumes --remove-orphans`
-
-**4. `npm run dev` inside container shows "address already in use"**
-> Another process is on port 5173 (or 3001/3002/3003). Check with `lsof -i :5173` and kill it.
-
-**5. Frontend shows blank page or "Cannot GET /"**
-> In production (nginx), the SPA needs the `try_files $uri /index.html` fallback. Check that `nginx.conf` is correctly copied into the image:
-> `docker compose -f docker-compose.prod.yml exec frontend cat /etc/nginx/conf.d/default.conf`
-
----
 
 ## Author / License
 
