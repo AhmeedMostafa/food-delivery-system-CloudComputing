@@ -175,10 +175,35 @@ kubectl get pods --watch
 # 6. Open the app
 minikube service frontend-service
 
-# 7. Access RabbitMQ and Grafana (in separate terminals)
-minikube service rabbitmq-service
+# 7. Access Dashboards (in separate terminals)
+# Option A: Using minikube service (opens browser automatically)
 minikube service grafana-service
+minikube service rabbitmq-service
+minikube service prometheus-service
+
+# Option B: Using kubectl port-forward (stable local ports)
+# Grafana: http://localhost:3000 (admin/admin)
+kubectl port-forward svc/grafana-service 3000:3000
+
+# RabbitMQ: http://localhost:15672 (guest/guest)
+kubectl port-forward svc/rabbitmq-service 15672:15672
+
+# Prometheus: http://localhost:9090
+kubectl port-forward svc/prometheus-service 9090:9090
 ```
+
+---
+
+## Dashboards Reference (K8s)
+
+| Dashboard | Command / URL | Default Credentials |
+| :--- | :--- | :--- |
+| **Frontend** | `minikube service frontend-service` | N/A |
+| **Grafana** | `localhost:3000` | `admin` / `admin` |
+| **RabbitMQ** | `localhost:15672` | `guest` / `guest` |
+| **Prometheus**| `localhost:9090` | N/A |
+| **K8s Dashboard**| `minikube dashboard` | N/A |
+
 
 ---
 
