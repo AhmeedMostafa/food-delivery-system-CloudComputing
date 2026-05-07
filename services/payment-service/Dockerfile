@@ -3,7 +3,7 @@ FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
 ARG NODE_ENV=production
-RUN if [ "$NODE_ENV" = "development" ]; then npm install; else npm ci --omit=dev; fi
+RUN if [ "$NODE_ENV" = "development" ]; then npm install; else npm install --omit=dev; fi
 
 # ---- Stage 2: runtime ----
 FROM node:20-alpine AS runtime

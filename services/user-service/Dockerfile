@@ -6,7 +6,7 @@ ARG NODE_ENV=production
 RUN if [ "$NODE_ENV" = "development" ]; then \
       npm install; \
     else \
-      npm ci --omit=dev; \
+      npm install --omit=dev; \
     fi
 
 # ---- Stage 2: runtime ----
