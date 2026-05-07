@@ -92,7 +92,7 @@ data:
           "title": "Memory Usage per Service",
           "type": "timeseries",
           "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
-          "targets": [{"expr": "sum(container_memory_working_set_bytes{image!='', container!='POD', container!=''})) by (pod)", "legendFormat": "{{pod}}"}],
+          "targets": [{"expr": "sum(container_memory_working_set_bytes{image!='', container!='POD', container!=''}) by (pod)", "legendFormat": "{{pod}}"}],
           "fieldConfig": {"defaults": {"unit": "bytes"}}
         },
         {
