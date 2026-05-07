@@ -16,15 +16,6 @@ spec:
       securityContext:
         fsGroup: 472
         runAsUser: 472
-      initContainers:
-      - name: init-dashboard-dir
-        image: busybox
-        command: ['sh', '-c', 'mkdir -p /var/lib/grafana/dashboards && cp /tmp/dashboards/*.json /var/lib/grafana/dashboards/ 2>/dev/null || true']
-        volumeMounts:
-        - name: grafana-data
-          mountPath: /var/lib/grafana
-        - name: grafana-food-delivery-dashboard
-          mountPath: /tmp/dashboards
       containers:
       - name: grafana
         image: grafana/grafana:latest
@@ -52,7 +43,7 @@ spec:
         - name: grafana-dashboard-provider
           mountPath: /etc/grafana/provisioning/dashboards
         - name: grafana-food-delivery-dashboard
-          mountPath: /tmp/dashboards
+          mountPath: /etc/grafana/dashboards
       volumes:
       - name: grafana-provisioning-datasource
         configMap:

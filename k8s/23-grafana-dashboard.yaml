@@ -32,7 +32,7 @@ data:
       disableDeletion: false
       updateIntervalSeconds: 10
       options:
-        path: /var/lib/grafana/dashboards
+        path: /etc/grafana/dashboards
 ---
 apiVersion: v1
 kind: ConfigMap
