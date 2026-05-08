@@ -65,7 +65,7 @@ step-by-step lifecycle:
 | `/services`               | Contains the source code for the 4 microservices. Each is a standalone Node.js/Express app.                                        |
 | `/frontend`               | A React single-page application (SPA) built with Vite and styled with modern CSS. Served by nginx in production.                   |
 | `/database`               | Contains `Dockerfile` and `init.sql`, the source of truth for the database schema and seed data.                                   |
-| `/k8s`                    | **24** Kubernetes manifests for deploying the system to any cluster (Deployments, Services, ConfigMaps, Secrets, StatefulSets, RBAC, Monitoring). |
+| `/k8s`                    | **26** Kubernetes manifests for deploying the system to any cluster (Deployments, Services, ConfigMaps, Secrets, StatefulSets, RBAC, Monitoring, Logging). |
 | `/tests/e2e`              | End-to-end test suite (`run-e2e.js`) — 44 assertions against the live stack.                                                       |
 | `docker-compose.dev.yml`  | Development environment — hot-reloading with nodemon, ports exposed.                                                               |
 | `docker-compose.test.yml` | Test environment — isolated DB, runs `npm test` in each service.                                                                   |
@@ -157,16 +157,17 @@ The frontend uses a **3-stage Dockerfile**:
 
 ### Kubernetes Architecture
 
-The project includes **24 K8s manifests** in the `/k8s` directory, deployable to any standard Kubernetes cluster:
+The project includes **26 K8s manifests** in the `/k8s` directory, deployable to any standard Kubernetes cluster:
 
 | Resource Type   | What It Does                                                       | Key Files |
 | :-------------- | :----------------------------------------------------------------- | :-------- |
 | **Secret**      | Stores sensitive data (DB password, JWT secret, RabbitMQ creds)   | `00-secret.yaml` |
 | **ConfigMap**   | Non-sensitive config (DB host, service URLs, init.sql, Prometheus config, Grafana dashboard) | `01-configmap.yaml`, `16-prometheus-configmap.yaml`, `23-grafana-dashboard.yaml` |
 | **Deployment**  | Defines pod templates + replica count for stateless services       | `04, 06, 08, 10, 12, 17, 22` |
-| **StatefulSet** | Stable storage for PostgreSQL, RabbitMQ, and Grafana              | `02, 14, 19` |
-| **Service**     | Network endpoints (ClusterIP for internal, NodePort for external)  | `03, 05, 07, 09, 11, 13, 15, 18, 20` |
-| **RBAC**        | Security permissions for Prometheus to scrape the cluster API     | `21-prometheus-rbac.yaml` |
+| **StatefulSet** | Stable storage for PostgreSQL, RabbitMQ, Grafana, and Loki         | `02, 14, 19, 24` |
+| **DaemonSet**   | Runs one pod per node — used by Promtail for log collection        | `25-promtail.yaml` |
+| **Service**     | Network endpoints (ClusterIP for internal, NodePort for external)  | `03, 05, 07, 09, 11, 13, 15, 18, 20, 24` |
+| **RBAC**        | Security permissions for Prometheus and Promtail to access the cluster API | `21-prometheus-rbac.yaml`, `25-promtail.yaml` |
 
 #### Service Exposure
 
@@ -188,9 +189,35 @@ The monitoring stack is **fully automated** — no manual Grafana configuration 
 | Component | Manifest | Purpose |
 |:----------|:---------|:--------|
 | **Prometheus** | `16,17,18` | Collects metrics every 15s via Kubernetes Service Discovery |
-| **Grafana** | `19,20,23` | Pre-provisioned dashboards (StatefulSet with PVC for persistence) |
+| **Grafana** | `19,20,23` | Pre-provisioned dashboards with Prometheus + Loki data sources (StatefulSet with PVC for persistence) |
 | **kube-state-metrics** | `22` | Exposes Kubernetes object metrics (deployment replicas, pod states) |
-| **RBAC** | `21` | Grants Prometheus access to `nodes`, `pods`, `deployments`, `endpoints` |
+| **Loki** | `24` | Central log storage — StatefulSet with 5Gi PVC, persists all pod logs |
+| **Promtail** | `25` | DaemonSet log shipper — runs on every node, tails `/var/log/pods/` and pushes to Loki |
+| **RBAC** | `21, 25` | Grants Prometheus access to `nodes`, `pods`, `deployments`; grants Promtail access to pod metadata |
+
+#### Centralized Log Collection (Loki + Promtail)
+
+The logging stack works as follows:
+
+1. **Promtail** runs as a `DaemonSet` (one pod per cluster node)
+2. It mounts `/var/log/pods/` from the host and tails all container log files
+3. It queries the Kubernetes API (via RBAC) to enrich logs with pod labels (`app`, `namespace`, `pod`, `container`)
+4. Logs are shipped to **Loki** via HTTP (`http://loki:3100/loki/api/v1/push`)
+5. Loki stores logs persistently on a **5Gi PVC** — surviving pod restarts
+6. **Grafana** has Loki pre-configured as a datasource → use **Explore → Loki** to query logs
+
+#### Sample LogQL Queries
+
+```logql
+# All logs from a specific service
+{app="order-service"}
+
+# Filter for errors across the entire cluster
+{namespace="default"} |= "error"
+
+# Combine metrics + logs (correlation)
+{app="payment-service"} |= "payment_queue"
+```
 
 #### How prom-client Works
 
@@ -231,6 +258,14 @@ The frontend uses route guards to enforce access based on role.
 
 ## 6. Technical Glossary
 
+- **Loki:** A log aggregation system by Grafana Labs. Stores logs indexed by labels
+  (not full-text), making it lightweight and fast. Queries use LogQL.
+- **Promtail:** A log shipping agent that tails pod log files on each node and pushes
+  them to Loki. Runs as a DaemonSet to cover all nodes.
+- **LogQL:** Loki's query language. Similar to PromQL but for logs. Uses label
+  selectors `{app="name"}` and filter expressions `|= "keyword"`.
+- **DaemonSet:** A Kubernetes workload that ensures exactly one pod runs on
+  every node in the cluster. Used by Promtail to collect logs from all nodes.
 - **JWT (JSON Web Token):** A stateless authentication mechanism. The server
   signs a token containing user data, and the client sends it back with every
   request. No session storage is needed on the server.

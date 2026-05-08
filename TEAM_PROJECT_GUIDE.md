@@ -34,6 +34,7 @@ system automatically processes payment via an async message queue.
 | **Sync Comms**    | axios (REST)                                                       | Services call each other via HTTP                      |
 | **Async Comms**   | RabbitMQ                                                           | Order→Payment decoupled via message queue              |
 | **Monitoring**    | Prometheus + Grafana + cAdvisor + prom-client + kube-state-metrics | Full-stack observability                               |
+| **Logging**       | Loki + Promtail                                                    | Centralized log collection and persistent storage      |
 | **Containers**    | Docker + Docker Compose v2                                         | Reproducible environments                              |
 | **Orchestration** | Kubernetes (any cluster — Minikube, K3s, cloud)                    | Production-grade container orchestration               |
 
@@ -67,7 +68,7 @@ food-delivery-system/
 ├── docker-compose.test.yml   # Testing environment (isolated DB)
 ├── docker-compose.prod.yml   # Production environment (nginx, no mounts)
 │
-├── k8s/                      # 24 Kubernetes manifest files
+├── k8s/                      # 26 Kubernetes manifest files
 └── tests/e2e/                # End-to-end test suite
 ```
 
@@ -294,7 +295,7 @@ are added. It installs only production dependencies and always succeeds.
 
 ## 9. Kubernetes Architecture
 
-The `k8s/` directory contains **24 manifest files** deployable to any standard
+The `k8s/` directory contains **26 manifest files** deployable to any standard
 Kubernetes cluster:
 
 ### Resource Types Used
@@ -304,9 +305,10 @@ Kubernetes cluster:
 | **Secret**      | Stores sensitive data (DB password, JWT secret, RabbitMQ creds)                       | `00-secret.yaml`                                                                 |
 | **ConfigMap**   | Non-sensitive config (DB host, service URLs, init.sql, Prometheus config, dashboards) | `01-configmap.yaml`, `16-prometheus-configmap.yaml`, `23-grafana-dashboard.yaml` |
 | **Deployment**  | Defines pod templates + replica count for stateless services                          | `04, 06, 08, 10, 12, 17, 22`                                                     |
-| **StatefulSet** | Stable storage for PostgreSQL, RabbitMQ, and Grafana                                  | `02-postgres`, `14-rabbitmq`, `19-grafana`                                       |
-| **Service**     | Network endpoints (ClusterIP internal, NodePort external)                             | `03, 05, 07, 09, 11, 13, 15, 18, 20`                                             |
-| **RBAC**        | Security permissions for Prometheus to scrape the cluster                             | `21-prometheus-rbac.yaml`                                                        |
+| **StatefulSet** | Stable storage for PostgreSQL, RabbitMQ, Grafana, and Loki                           | `02-postgres`, `14-rabbitmq`, `19-grafana`, `24-loki`                            |
+| **DaemonSet**   | Runs one pod per node — used by Promtail for log collection                         | `25-promtail.yaml`                                                               |
+| **Service**     | Network endpoints (ClusterIP internal, NodePort external)                             | `03, 05, 07, 09, 11, 13, 15, 18, 20, 24`                                         |
+| **RBAC**        | Security permissions for Prometheus and Promtail to access the cluster                | `21-prometheus-rbac.yaml`, `25-promtail.yaml`                                    |
 
 ### Service Types
 
@@ -321,6 +323,7 @@ Kubernetes cluster:
 | `rabbitmq-service`   | **NodePort** | 30003 | Exposed management dashboard             |
 | `prometheus-service` | **NodePort** | 30002 | Exposed metrics engine                   |
 | `grafana-service`    | **NodePort** | 30001 | Exposed visual dashboards                |
+| `loki`               | ClusterIP    | 3100  | Internal log storage                     |
 
 ### Replicas & Health Checks
 
@@ -335,6 +338,8 @@ Kubernetes cluster:
 | rabbitmq           | 1        | StatefulSet PVC        | —                       |
 | prometheus         | 1        | —                      | —                       |
 | grafana            | 1        | StatefulSet PVC        | —                       |
+| loki               | 1        | StatefulSet PVC        | —                       |
+| promtail           | DaemonSet | —                      | —                       |
 
 ---
 
@@ -378,8 +383,30 @@ needed.
 | **cAdvisor**           | Built-in    | Container CPU, memory, network stats (scraped from node /metrics/cadvisor) |
 | **kube-state-metrics** | 8080        | Kubernetes object metrics (replica counts, deployment status)              |
 | **prom-client**        | per service | Native Node.js metrics from each microservice's `/metrics` endpoint        |
+| **Loki**                | 3100 (internal) | Central log storage — persists all pod logs to a 5Gi PVC |
+| **Promtail**            | DaemonSet | Runs on every node, tails `/var/log/pods/` and ships logs to Loki |
 
-### Grafana Dashboard — "Food Delivery System - K3s Cluster"
+### Centralized Log Collection (Loki + Promtail)
+
+Your cluster now collects and stores all logs centrally:
+
+1. **Promtail** (`25-promtail.yaml`) runs as a **DaemonSet** — one pod per node
+2. It reads log files from `/var/log/pods/` on the host (all container stdout/stderr)
+3. It adds Kubernetes labels (`app`, `namespace`, `pod`, `container`) to every log line
+4. Logs are shipped to **Loki** (`24-loki.yaml`) and stored persistently on a 5Gi PVC
+5. **Grafana** has Loki pre-configured — go to **Explore → Select Loki** to search logs
+
+**Sample log queries (LogQL):**
+```logql
+# All logs from the payment service
+{app="payment-service"}
+
+# Search for errors across all services
+{namespace="default"} |= "error"
+
+# View RabbitMQ connection logs
+{app="order-service"} |= "RabbitMQ"
+```
 
 Automatically provisioned on startup. Shows:
 
@@ -509,7 +536,7 @@ docker build -t food-delivery/payment-service:latest ./services/payment-service
 docker build -t food-delivery/frontend:latest ./frontend
 docker build -t food-delivery/postgres:latest ./database
 
-# Deploy all 24 manifests
+# Deploy all 26 manifests
 kubectl apply -f k8s/
 
 # Watch pods start up
@@ -520,7 +547,25 @@ kubectl get pods --watch
 # Grafana:    http://<node-ip>:30001  (admin/admin)
 # Prometheus: http://<node-ip>:30002
 # RabbitMQ:   http://<node-ip>:30003  (guest/guest)
+# Loki:       http://<node-ip>:3100 (internal only)
 ```
+
+---
+
+## 17. Common Troubleshooting
+
+| Problem                                        | Cause                                        | Fix                                              |
+| ---------------------------------------------- | -------------------------------------------- | ------------------------------------------------ |
+| Services crash with "Cannot find package 'pg'" | Host `node_modules` mounted over container's | Remove `node_modules` volume mounts from compose |
+| `RABBITMQ_DEFAULT_USER is required`            | Prod compose requires explicit env vars      | Add `RABBITMQ_DEFAULT_USER=guest` to `.env`      |
+| `npm ci` permission denied                     | Lockfile out of sync after adding prom-client| Dockerfiles use `npm install --omit=dev` instead |
+| Grafana dashboard missing after restart        | Old setup used `emptyDir` (RAM only)         | Grafana is now a StatefulSet with PVC — data persists |
+| Prometheus targets showing 403 Forbidden       | Missing RBAC permissions for node metrics    | Apply `21-prometheus-rbac.yaml` which grants node/status access |
+| Grafana panels showing "No data"               | Wrong label names in queries                 | Dashboard uses `pod`, `namespace` labels — matches Prometheus relabeling rules |
+| Loki shows no logs in Grafana                  | Promtail not running or wrong path           | Run `kubectl get pods -l app=promtail` — check it's Running on each node |
+| Promtail crashes with permission denied        | Host path `/var/log/pods` not accessible     | Check node permissions; K3s stores logs at `/var/log/pods` by default |
+| Postgres "data directory wrong ownership"      | Volume reused between restarts               | `kubectl delete pod -l app=postgres`             |
+| Frontend blank page in prod                    | Missing nginx `try_files` fallback           | Check `nginx.conf` is copied in Dockerfile       |
 
 ---
 

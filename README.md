@@ -60,6 +60,7 @@ A full-stack food delivery application built with Node.js microservices, React, 
 | Auth          | JWT (jsonwebtoken) + bcryptjs           |
 | Inter-service | axios (REST) & RabbitMQ (Async)         |
 | Monitoring    | Prometheus + Grafana + cAdvisor + prom-client + kube-state-metrics |
+| Logging       | Loki + Promtail (centralized log collection & storage)  |
 | Containers    | Docker + Docker Compose v2              |
 | Orchestration | Kubernetes (K3s / Minikube / any cluster) |
 
@@ -89,7 +90,7 @@ food-delivery-system/
 ├── docker-compose.dev.yml  # hot-reload, ports exposed
 ├── docker-compose.test.yml # separate DB, test ports
 ├── docker-compose.prod.yml # no source mounts, restart policies
-└── k8s/                    # 24 Kubernetes manifests (Deployments, Services, ConfigMaps, StatefulSets, RBAC, Monitoring)
+└── k8s/                    # 26 Kubernetes manifests (Deployments, Services, ConfigMaps, StatefulSets, RBAC, Monitoring, Logging)
 ```
 
 ---
@@ -150,7 +151,7 @@ docker compose -f docker-compose.dev.yml down
 
 ## Quick Start — Kubernetes
 
-The `k8s/` directory contains **24 manifests** that deploy the complete system to any Kubernetes cluster (Minikube, K3s, GKE, etc.).
+The `k8s/` directory contains **26 manifests** that deploy the complete system to any Kubernetes cluster (Minikube, K3s, GKE, etc.).
 
 ```bash
 # --- Option A: Minikube ---
@@ -230,7 +231,9 @@ kubectl get pods --watch
 | `20-grafana-service.yaml` | Service | NodePort 30001 |
 | `21-prometheus-rbac.yaml` | RBAC | ServiceAccount + ClusterRole for Prometheus pod discovery |
 | `22-kube-state-metrics.yaml` | Deployment | Exposes K8s object metrics (replicas, deployments, etc.) |
-| `23-grafana-dashboard.yaml` | ConfigMap | Auto-provisioned Prometheus data source + Food Delivery dashboard |
+| `23-grafana-dashboard.yaml` | ConfigMap | Auto-provisioned Prometheus + Loki data sources + Food Delivery dashboard |
+| `24-loki.yaml` | StatefulSet + Service | Loki log aggregation server with 5Gi persistent storage |
+| `25-promtail.yaml` | DaemonSet + RBAC | Promtail log collector — runs on every node, ships all pod logs to Loki |
 
 ---
 
@@ -243,10 +246,12 @@ The Kubernetes deployment includes a **fully automated** observability stack tha
 | Component | Purpose |
 |:----------|:--------|
 | **Prometheus** | Scrapes metrics every 15s via Kubernetes service discovery |
-| **Grafana** | Pre-provisioned dashboard showing CPU, Memory, Pods, Deployments, Network |
+| **Grafana** | Pre-provisioned dashboard showing CPU, Memory, Pods, Deployments, Network + log explorer |
 | **cAdvisor** | Container-level CPU, memory, and network metrics (built into K8s nodes) |
 | **kube-state-metrics** | Kubernetes object metrics (replica counts, deployment status) |
 | **prom-client** | Native Node.js metrics from each microservice (`/metrics` endpoint) |
+| **Loki** | Central log storage — persists all pod logs to a 5Gi PVC |
+| **Promtail** | DaemonSet log collector — automatically ships every pod's stdout/stderr to Loki |
 
 ### How Service Discovery Works
 
@@ -264,6 +269,21 @@ The **"Food Delivery System - K3s Cluster"** dashboard is automatically provisio
 - Node.js Heap Memory from `prom-client` (all 4 services)
 - Deployment Replicas bar chart
 - Network Receive bytes/s
+
+### Querying Logs in Grafana
+
+Once Loki and Promtail are running, open **Grafana → Explore → Select "Loki"** and use LogQL:
+
+```logql
+# All logs from the order service
+{app="order-service"}
+
+# Filter for errors across all services
+{namespace="default"} |= "error"
+
+# Logs from a specific pod
+{pod="user-service-abc123"}
+```
 
 ---
 
