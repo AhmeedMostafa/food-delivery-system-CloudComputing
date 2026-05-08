@@ -463,6 +463,10 @@ Automatically provisioned on startup. Shows:
 Each service has a `tests/` folder with Jest tests:
 
 ```bash
+# Option A: Run all unit tests via Docker (Recommended)
+docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
+
+# Option B: Run manually in each service
 cd services/user-service && npm test
 cd services/restaurant-service && npm test
 cd services/order-service && npm test

@@ -148,6 +148,29 @@ docker compose -f docker-compose.dev.yml down
 
 ---
 
+## Automated Testing
+
+The project includes two levels of automated testing to ensure system reliability.
+
+### 1. Unit Tests (Isolated)
+Tests individual functions and logic within each service.
+```bash
+# Run all unit tests via Docker
+docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
+```
+
+### 2. End-to-End (E2E) Tests (Integration)
+Tests the full system flow (Order -> Payment -> Status) against a live environment.
+```bash
+# 1. Ensure the development environment is running
+docker compose -f docker-compose.dev.yml up -d
+
+# 2. Run the 44 assertions against the live APIs
+node tests/e2e/run-e2e.js
+```
+
+---
+
 ## Quick Start — Kubernetes
 
 The `k8s/` directory contains **26 manifests** that deploy the complete system to any Kubernetes cluster (Minikube, K3s, GKE, etc.).
