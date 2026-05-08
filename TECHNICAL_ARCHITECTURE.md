@@ -130,7 +130,7 @@ they share a single PostgreSQL instance separated by **4 Postgres Schemas**.
 - **Development (`docker-compose.dev.yml`):** Uses `volumes` to mount local
   source code into the container. `nodemon` watches for changes, allowing for a
   "save-and-refresh" workflow without rebuilding images. Builds include dev
-  dependencies.
+  dependencies. Focused purely on core business logic (App + DB + RabbitMQ).
 - **Test (`docker-compose.test.yml`):** Uses a separate database
   (`food_delivery_test`) and different ports (4001-4004) so it can run alongside
   dev. Each service runs `npm test` as its command.
@@ -138,7 +138,8 @@ they share a single PostgreSQL instance separated by **4 Postgres Schemas**.
   production dependencies are installed. The frontend is built into static files
   and served by nginx. Environment variables use `${VAR:?error}` syntax to
   enforce explicit configuration. Services have `restart: unless-stopped`
-  policies.
+  policies. Observability tools are omitted here to keep the dev environment
+  lightweight; monitoring is treated as a platform-level concern in Kubernetes.
 
 ### Docker Image Build Strategy
 
@@ -180,9 +181,9 @@ The project includes **26 K8s manifests** in the `/k8s` directory, deployable to
 | All backend services | ClusterIP (internal)  | —     |
 | PostgreSQL           | ClusterIP (internal)  | 5432  |
 
-### Monitoring & Observability Stack
+### Kubernetes Observability & Monitoring
 
-The monitoring stack is **fully automated** — no manual Grafana configuration required.
+The observability stack is **fully automated** within the Kubernetes cluster, providing deep visibility into production workloads that is not required during local development.
 
 #### Components
 

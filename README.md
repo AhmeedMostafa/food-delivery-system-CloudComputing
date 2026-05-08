@@ -41,9 +41,9 @@ A full-stack food delivery application built with Node.js microservices, React, 
                      +-------------------+
 
          +-----------------------------------------------+
-         |              Monitoring Stack                  |
-         |  Prometheus (9090) + Grafana (3000)            |
-         |  cAdvisor + kube-state-metrics                 |
+         |       Kubernetes-Only Observability Stack      |
+         |  Prometheus + Grafana + Loki + Promtail       |
+         |  cAdvisor + kube-state-metrics                |
          |  prom-client (native /metrics per service)     |
          +-----------------------------------------------+
 ```
@@ -59,7 +59,7 @@ A full-stack food delivery application built with Node.js microservices, React, 
 | Database      | PostgreSQL 16 (one instance, 4 schemas) |
 | Auth          | JWT (jsonwebtoken) + bcryptjs           |
 | Inter-service | axios (REST) & RabbitMQ (Async)         |
-| Monitoring    | Prometheus + Grafana + cAdvisor + prom-client + kube-state-metrics |
+| Monitoring    | Prometheus + Grafana + cAdvisor + prom-client + kube-state-metrics (K8s only) |
 | Logging       | Loki + Promtail (centralized log collection & storage)  |
 | Containers    | Docker + Docker Compose v2              |
 | Orchestration | Kubernetes (K3s / Minikube / any cluster) |
@@ -132,7 +132,6 @@ cp .env.example .env
 docker compose -f docker-compose.dev.yml up --build
 # Frontend: http://localhost:5173
 # RabbitMQ: http://localhost:15672 (guest/guest)
-# Grafana: http://localhost:3000 (admin/admin)
 
 # --- Test (separate DB, port 4173) ---
 docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
@@ -239,7 +238,7 @@ kubectl get pods --watch
 
 ## Kubernetes Observability & Monitoring
 
-The Kubernetes deployment includes a **fully automated** observability stack that requires zero manual configuration.
+The Kubernetes deployment includes a **fully automated** observability stack (Metrics + Logs) that is decoupled from the local development environment.
 
 ### What's Included
 

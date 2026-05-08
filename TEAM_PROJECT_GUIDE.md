@@ -33,8 +33,8 @@ system automatically processes payment via an async message queue.
 | **Auth**          | JWT + bcryptjs                                                     | Stateless auth — no server-side sessions needed        |
 | **Sync Comms**    | axios (REST)                                                       | Services call each other via HTTP                      |
 | **Async Comms**   | RabbitMQ                                                           | Order→Payment decoupled via message queue              |
-| **Monitoring**    | Prometheus + Grafana + cAdvisor + prom-client + kube-state-metrics | Full-stack observability                               |
-| **Logging**       | Loki + Promtail                                                    | Centralized log collection and persistent storage      |
+| **Monitoring**    | Prometheus + Grafana + cAdvisor + prom-client + kube-state-metrics (K8s only) | Full-stack observability (Cluster only) |
+| **Logging**       | Loki + Promtail (K8s only)                      | Centralized log collection (Cluster only) |
 | **Containers**    | Docker + Docker Compose v2                                         | Reproducible environments                              |
 | **Orchestration** | Kubernetes (any cluster — Minikube, K3s, cloud)                    | Production-grade container orchestration               |
 
@@ -249,7 +249,7 @@ database-per-service):
 | **Postgres port**   | 5433 (host)                       | 5442 (host)             | Not exposed                     |
 | **Database name**   | `food_delivery`                   | `food_delivery_test`    | `food_delivery`                 |
 | **RabbitMQ**        | ✅                                | ❌                      | ✅                              |
-| **Monitoring**      | ✅ Prometheus+Grafana+cAdvisor    | ❌                      | ✅ Prometheus+Grafana+cAdvisor  |
+| **Monitoring**      | ✅ (K8s Only)                 | ❌                      | ✅ (K8s Only)                  |
 | **Env var style**   | `${VAR:-default}` (safe fallback) | `${VAR:-default}`       | `${VAR:?error}` (MUST be set!)  |
 | **Restart policy**  | None                              | None                    | `unless-stopped`                |
 | **Network**         | `food_net_dev`                    | `food_net_test`         | `food_net_prod`                 |
@@ -371,8 +371,7 @@ Order Service                    RabbitMQ                    Payment Service
 
 ## 11. Monitoring Stack — Full Observability
 
-The Kubernetes monitoring stack is **fully automated** — no manual configuration
-needed.
+The Kubernetes monitoring stack is **fully automated** and decoupled from the development environment. We treat observability as a infrastructure-level concern.
 
 ### Components
 
@@ -513,7 +512,6 @@ K3s.
 cp .env.example .env
 docker compose -f docker-compose.dev.yml up --build
 # Frontend: http://localhost:5173
-# Grafana:  http://localhost:3000 (admin/admin)
 # RabbitMQ: http://localhost:15672 (guest/guest)
 ```
 
