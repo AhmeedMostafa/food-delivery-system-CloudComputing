@@ -2,11 +2,8 @@
 # Creates two ConfigMaps:
 #   food-config        -- shared env vars for all backend services
 #   postgres-init-sql  -- the init.sql mounted into postgres on first start
-#
+
 # Apply: kubectl apply -f k8s/01-configmap.yaml
-#
-# Note: in production, sensitive values like DB_PASSWORD and JWT_SECRET
-# should be in a Kubernetes Secret. Combined here for simplicity.
 
 apiVersion: v1
 kind: ConfigMap

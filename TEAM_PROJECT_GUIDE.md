@@ -25,18 +25,18 @@ system automatically processes payment via an async message queue.
 
 ## 2. Tech Stack
 
-| Layer             | Technology                                                         | Why                                                    |
-| ----------------- | ------------------------------------------------------------------ | ------------------------------------------------------ |
-| **Backend**       | Node.js 20 + Express 4                                             | Lightweight, async I/O, perfect for microservices      |
-| **Frontend**      | React 18 + Vite 5 + CSS                                            | Modern SPA framework, fast dev server                  |
-| **Database**      | PostgreSQL 16                                                      | Reliable RDBMS, supports schemas for service isolation |
-| **Auth**          | JWT + bcryptjs                                                     | Stateless auth — no server-side sessions needed        |
-| **Sync Comms**    | axios (REST)                                                       | Services call each other via HTTP                      |
-| **Async Comms**   | RabbitMQ                                                           | Order→Payment decoupled via message queue              |
-| **Monitoring**    | Prometheus + Grafana + cAdvisor + prom-client + kube-state-metrics (K8s only) | Full-stack observability (Cluster only) |
-| **Logging**       | Loki + Promtail (K8s only)                      | Centralized log collection (Cluster only) |
-| **Containers**    | Docker + Docker Compose v2                                         | Reproducible environments                              |
-| **Orchestration** | Kubernetes (any cluster — Minikube, K3s, cloud)                    | Production-grade container orchestration               |
+| Layer             | Technology                                                                    | Why                                                    |
+| ----------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------ |
+| **Backend**       | Node.js 20 + Express 4                                                        | Lightweight, async I/O, perfect for microservices      |
+| **Frontend**      | React 18 + Vite 5 + CSS                                                       | Modern SPA framework, fast dev server                  |
+| **Database**      | PostgreSQL 16                                                                 | Reliable RDBMS, supports schemas for service isolation |
+| **Auth**          | JWT + bcryptjs                                                                | Stateless auth — no server-side sessions needed        |
+| **Sync Comms**    | axios (REST)                                                                  | Services call each other via HTTP                      |
+| **Async Comms**   | RabbitMQ                                                                      | Order→Payment decoupled via message queue              |
+| **Monitoring**    | Prometheus + Grafana + cAdvisor + prom-client + kube-state-metrics (K8s only) | Full-stack observability (Cluster only)                |
+| **Logging**       | Loki + Promtail (K8s only)                                                    | Centralized log collection (Cluster only)              |
+| **Containers**    | Docker + Docker Compose v2                                                    | Reproducible environments                              |
+| **Orchestration** | Kubernetes (any cluster — Minikube, K3s, cloud)                               | Production-grade container orchestration               |
 
 ---
 
@@ -249,7 +249,7 @@ database-per-service):
 | **Postgres port**   | 5433 (host)                       | 5442 (host)             | Not exposed                     |
 | **Database name**   | `food_delivery`                   | `food_delivery_test`    | `food_delivery`                 |
 | **RabbitMQ**        | ✅                                | ❌                      | ✅                              |
-| **Monitoring**      | ✅ (K8s Only)                 | ❌                      | ✅ (K8s Only)                  |
+| **Monitoring**      | ✅ (K8s Only)                     | ❌                      | ✅ (K8s Only)                   |
 | **Env var style**   | `${VAR:-default}` (safe fallback) | `${VAR:-default}`       | `${VAR:?error}` (MUST be set!)  |
 | **Restart policy**  | None                              | None                    | `unless-stopped`                |
 | **Network**         | `food_net_dev`                    | `food_net_test`         | `food_net_prod`                 |
@@ -279,12 +279,6 @@ USER node
 CMD ["node", "src/index.js"]
 ```
 
-**Why `npm install --omit=dev` instead of `npm ci`?**
-
-Using `npm install --omit=dev` is more resilient — it doesn't fail if the
-`package-lock.json` gets out of sync when new dependencies (like `prom-client`)
-are added. It installs only production dependencies and always succeeds.
-
 **The frontend Dockerfile is 3-stage:**
 
 1. `builder` — install deps (used by dev compose as the target)
@@ -305,8 +299,8 @@ Kubernetes cluster:
 | **Secret**      | Stores sensitive data (DB password, JWT secret, RabbitMQ creds)                       | `00-secret.yaml`                                                                 |
 | **ConfigMap**   | Non-sensitive config (DB host, service URLs, init.sql, Prometheus config, dashboards) | `01-configmap.yaml`, `16-prometheus-configmap.yaml`, `23-grafana-dashboard.yaml` |
 | **Deployment**  | Defines pod templates + replica count for stateless services                          | `04, 06, 08, 10, 12, 17, 22`                                                     |
-| **StatefulSet** | Stable storage for PostgreSQL, RabbitMQ, Grafana, and Loki                           | `02-postgres`, `14-rabbitmq`, `19-grafana`, `24-loki`                            |
-| **DaemonSet**   | Runs one pod per node — used by Promtail for log collection                         | `25-promtail.yaml`                                                               |
+| **StatefulSet** | Stable storage for PostgreSQL, RabbitMQ, Grafana, and Loki                            | `02-postgres`, `14-rabbitmq`, `19-grafana`, `24-loki`                            |
+| **DaemonSet**   | Runs one pod per node — used by Promtail for log collection                           | `25-promtail.yaml`                                                               |
 | **Service**     | Network endpoints (ClusterIP internal, NodePort external)                             | `03, 05, 07, 09, 11, 13, 15, 18, 20, 24`                                         |
 | **RBAC**        | Security permissions for Prometheus and Promtail to access the cluster                | `21-prometheus-rbac.yaml`, `25-promtail.yaml`                                    |
 
@@ -327,18 +321,18 @@ Kubernetes cluster:
 
 ### Replicas & Health Checks
 
-| Component          | Replicas | Readiness Probe        | Liveness Probe          |
-| ------------------ | -------- | ---------------------- | ----------------------- |
-| user-service       | 2        | GET /health (5s delay) | GET /health (15s delay) |
-| restaurant-service | 2        | GET /health (5s delay) | GET /health (15s delay) |
-| order-service      | 2        | GET /health (5s delay) | GET /health (15s delay) |
-| payment-service    | 2        | GET /health (5s delay) | GET /health (15s delay) |
-| frontend           | 1        | GET / (3s delay)       | GET / (10s delay)       |
-| postgres           | 1        | StatefulSet PVC        | —                       |
-| rabbitmq           | 1        | StatefulSet PVC        | —                       |
-| prometheus         | 1        | —                      | —                       |
-| grafana            | 1        | StatefulSet PVC        | —                       |
-| loki               | 1        | StatefulSet PVC        | —                       |
+| Component          | Replicas  | Readiness Probe        | Liveness Probe          |
+| ------------------ | --------- | ---------------------- | ----------------------- |
+| user-service       | 2         | GET /health (5s delay) | GET /health (15s delay) |
+| restaurant-service | 2         | GET /health (5s delay) | GET /health (15s delay) |
+| order-service      | 2         | GET /health (5s delay) | GET /health (15s delay) |
+| payment-service    | 2         | GET /health (5s delay) | GET /health (15s delay) |
+| frontend           | 1         | GET / (3s delay)       | GET / (10s delay)       |
+| postgres           | 1         | StatefulSet PVC        | —                       |
+| rabbitmq           | 1         | StatefulSet PVC        | —                       |
+| prometheus         | 1         | —                      | —                       |
+| grafana            | 1         | StatefulSet PVC        | —                       |
+| loki               | 1         | StatefulSet PVC        | —                       |
 | promtail           | DaemonSet | —                      | —                       |
 
 ---
@@ -371,31 +365,38 @@ Order Service                    RabbitMQ                    Payment Service
 
 ## 11. Monitoring Stack — Full Observability
 
-The Kubernetes monitoring stack is **fully automated** and decoupled from the development environment. We treat observability as a infrastructure-level concern.
+The Kubernetes monitoring stack is **fully automated** and decoupled from the
+development environment. We treat observability as a infrastructure-level
+concern.
 
 ### Components
 
-| Tool                   | NodePort    | Purpose                                                                    |
-| ---------------------- | ----------- | -------------------------------------------------------------------------- |
-| **Prometheus**         | 30002       | Scrapes metrics every 15s from all pods + nodes                            |
-| **Grafana**            | 30001       | Pre-provisioned dashboards (login: admin/admin)                            |
-| **cAdvisor**           | Built-in    | Container CPU, memory, network stats (scraped from node /metrics/cadvisor) |
-| **kube-state-metrics** | 8080        | Kubernetes object metrics (replica counts, deployment status)              |
-| **prom-client**        | per service | Native Node.js metrics from each microservice's `/metrics` endpoint        |
-| **Loki**                | 3100 (internal) | Central log storage — persists all pod logs to a 5Gi PVC |
-| **Promtail**            | DaemonSet | Runs on every node, tails `/var/log/pods/` and ships logs to Loki |
+| Tool                   | NodePort        | Purpose                                                                    |
+| ---------------------- | --------------- | -------------------------------------------------------------------------- |
+| **Prometheus**         | 30002           | Scrapes metrics every 15s from all pods + nodes                            |
+| **Grafana**            | 30001           | Pre-provisioned dashboards (login: admin/admin)                            |
+| **cAdvisor**           | Built-in        | Container CPU, memory, network stats (scraped from node /metrics/cadvisor) |
+| **kube-state-metrics** | 8080            | Kubernetes object metrics (replica counts, deployment status)              |
+| **prom-client**        | per service     | Native Node.js metrics from each microservice's `/metrics` endpoint        |
+| **Loki**               | 3100 (internal) | Central log storage — persists all pod logs to a 5Gi PVC                   |
+| **Promtail**           | DaemonSet       | Runs on every node, tails `/var/log/pods/` and ships logs to Loki          |
 
 ### Centralized Log Collection (Loki + Promtail)
 
 Your cluster now collects and stores all logs centrally:
 
 1. **Promtail** (`25-promtail.yaml`) runs as a **DaemonSet** — one pod per node
-2. It reads log files from `/var/log/pods/` on the host (all container stdout/stderr)
-3. It adds Kubernetes labels (`app`, `namespace`, `pod`, `container`) to every log line
-4. Logs are shipped to **Loki** (`24-loki.yaml`) and stored persistently on a 5Gi PVC
-5. **Grafana** has Loki pre-configured — go to **Explore → Select Loki** to search logs
+2. It reads log files from `/var/log/pods/` on the host (all container
+   stdout/stderr)
+3. It adds Kubernetes labels (`app`, `namespace`, `pod`, `container`) to every
+   log line
+4. Logs are shipped to **Loki** (`24-loki.yaml`) and stored persistently on a
+   5Gi PVC
+5. **Grafana** has Loki pre-configured — go to **Explore → Select Loki** to
+   search logs
 
 **Sample log queries (LogQL):**
+
 ```logql
 # All logs from the payment service
 {app="payment-service"}
@@ -551,23 +552,6 @@ kubectl get pods --watch
 # RabbitMQ:   http://<node-ip>:30003  (guest/guest)
 # Loki:       http://<node-ip>:3100 (internal only)
 ```
-
----
-
-## 17. Common Troubleshooting
-
-| Problem                                        | Cause                                        | Fix                                              |
-| ---------------------------------------------- | -------------------------------------------- | ------------------------------------------------ |
-| Services crash with "Cannot find package 'pg'" | Host `node_modules` mounted over container's | Remove `node_modules` volume mounts from compose |
-| `RABBITMQ_DEFAULT_USER is required`            | Prod compose requires explicit env vars      | Add `RABBITMQ_DEFAULT_USER=guest` to `.env`      |
-| `npm ci` permission denied                     | Lockfile out of sync after adding prom-client| Dockerfiles use `npm install --omit=dev` instead |
-| Grafana dashboard missing after restart        | Old setup used `emptyDir` (RAM only)         | Grafana is now a StatefulSet with PVC — data persists |
-| Prometheus targets showing 403 Forbidden       | Missing RBAC permissions for node metrics    | Apply `21-prometheus-rbac.yaml` which grants node/status access |
-| Grafana panels showing "No data"               | Wrong label names in queries                 | Dashboard uses `pod`, `namespace` labels — matches Prometheus relabeling rules |
-| Loki shows no logs in Grafana                  | Promtail not running or wrong path           | Run `kubectl get pods -l app=promtail` — check it's Running on each node |
-| Promtail crashes with permission denied        | Host path `/var/log/pods` not accessible     | Check node permissions; K3s stores logs at `/var/log/pods` by default |
-| Postgres "data directory wrong ownership"      | Volume reused between restarts               | `kubectl delete pod -l app=postgres`             |
-| Frontend blank page in prod                    | Missing nginx `try_files` fallback           | Check `nginx.conf` is copied in Dockerfile       |
 
 ---
 

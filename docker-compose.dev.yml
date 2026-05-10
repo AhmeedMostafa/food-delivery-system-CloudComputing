@@ -1,8 +1,7 @@
 # ====== Development Compose (The "Workbench") ======
 # Use this while writing code.
 # - Hot-reloading: Code changes are reflected immediately via volume mounts and nodemon.
-# - Debugging: All services and internal tools (DBs, RabbitMQ, Grafana) are exposed on host ports.
-# - Monitoring: Includes observability tools (Prometheus/Grafana) for dev-time analysis.
+# - Debugging: All services and internal tools (DBs, RabbitMQ) are exposed on host ports.
 # Run: docker compose -f docker-compose.dev.yml up --build
 
 name: food-delivery-dev
