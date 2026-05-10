@@ -1,22 +1,29 @@
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: v1
 kind: ConfigMap
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: prometheus-config
 data:
   prometheus.yml: |
     global:
-      scrape_interval: 15s
+      scrape_interval: 15s # The internal heartbeat timer. Tells Prometheus how often to go fetch metrics.
 
+    # The definition of ALL search missions (jobs) Prometheus should execute.
     scrape_configs:
+      
+      # --- JOB 1: SCRAPE THE NODES ---
+      # Reads standard Linux machine-level health data from the physical server node itself.
       - job_name: 'kubernetes-nodes'
-        kubernetes_sd_configs:
+        kubernetes_sd_configs: # Use the K8s API to dynamically find search targets
         - role: node
         scheme: https
-        tls_config:
+        tls_config: # Authenticate the connection to the secure node API
           ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
           insecure_skip_verify: true
-        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-        relabel_configs:
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token # Use our loaded credentials
+        relabel_configs: # Map messy internal raw tags to human-friendly names
         - action: labelmap
           regex: __meta_kubernetes_node_label_(.+)
         - source_labels: [__meta_kubernetes_node_name]
@@ -26,6 +33,8 @@ data:
           action: replace
           target_label: instance
 
+      # --- JOB 2: SCRAPE CADVISOR ---
+      # Reads granular container stats (CPU limit vs current load, specific bytes read from disk)
       - job_name: 'kubernetes-cadvisor'
         kubernetes_sd_configs:
         - role: node
@@ -34,7 +43,7 @@ data:
           ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
           insecure_skip_verify: true
         bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-        metrics_path: /metrics/cadvisor
+        metrics_path: /metrics/cadvisor # Specific internal secure path to query container stats
         relabel_configs:
         - action: labelmap
           regex: __meta_kubernetes_node_label_(.+)
@@ -45,22 +54,35 @@ data:
           action: replace
           target_label: instance
 
+      # --- JOB 3: SCRAPE THE MICROSERVICES (PODS) ---
+      # Discovers your order-service, user-service, etc. based on special text tags!
       - job_name: 'kubernetes-pods'
         kubernetes_sd_configs:
-        - role: pod
+        - role: pod # Search specifically for application containers
         relabel_configs:
+        # STEP A: THE FILTER
+        # Tell Prometheus: DISCARD the container UNLESS the YAML explicitly set `prometheus.io/scrape: true`
         - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
           action: keep
           regex: true
+        
+        # STEP B: PATH RESOLUTION
+        # Tells Prometheus what URL path to scrape (defaults to /metrics)
         - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
           action: replace
           target_label: __metrics_path__
           regex: (.+)
+        
+        # STEP C: PORT RESOLUTION
+        # Auto-calculates exactly which listening port to knock on (e.g., :3001, :3002)
         - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
           action: replace
           regex: ([^:]+)(?::\d+)?;(\d+)
           replacement: $1:$2
           target_label: __address__
+        
+        # STEP D: LABEL POLISHING
+        # Converts standard internal text labels into clean 'pod' and 'namespace' variables for Grafana.
         - action: labelmap
           regex: __meta_kubernetes_pod_label_(.+)
         - source_labels: [__meta_kubernetes_namespace]
@@ -74,4 +96,4 @@ data:
           target_label: kubernetes_pod_name
         - source_labels: [__meta_kubernetes_pod_name]
           action: replace
-          target_label: pod
+          target_label: pod

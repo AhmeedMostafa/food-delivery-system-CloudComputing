@@ -3,31 +3,43 @@
 #
 # Apply: kubectl apply -f k8s/21-prometheus-rbac.yaml
 
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: v1
 kind: ServiceAccount
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: prometheus-sa
   namespace: default
 ---
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: prometheus-role
 rules:
 - apiGroups: [""]
+  # Compute quotas enforced to prevent CPU/Memory throttling and crashes.
   resources: ["nodes", "nodes/proxy", "nodes/metrics", "nodes/stats", "nodes/status", "services", "endpoints", "pods"]
   verbs: ["get", "list", "watch"]
 - apiGroups: ["extensions", "apps"]
+  # Compute quotas enforced to prevent CPU/Memory throttling and crashes.
   resources: ["deployments", "statefulsets", "replicasets", "ingresses"]
   verbs: ["get", "list", "watch"]
 - apiGroups: ["batch"]
+  # Compute quotas enforced to prevent CPU/Memory throttling and crashes.
   resources: ["jobs", "cronjobs"]
   verbs: ["get", "list", "watch"]
 - nonResourceURLs: ["/metrics"]
   verbs: ["get"]
 ---
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: prometheus-rb
 roleRef:

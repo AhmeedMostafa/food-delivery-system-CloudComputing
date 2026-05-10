@@ -1,12 +1,22 @@
+# Service objects are stable internal addresses (DNS records) for pods.
 apiVersion: v1
 kind: Service
+
 metadata:
   name: grafana-service
+
 spec:
+  # 'NodePort' creates an external door that allows you to access this 
+  # resource from your web browser outside the cluster.
   type: NodePort
+
+  # The selector tells the Service to watch for incoming traffic and 
+  # forward it to any container carrying the label 'app: grafana'.
   selector:
     app: grafana
+
+  # Network interface linking virtual Cluster ports to internal container ports.
   ports:
-    - port: 3000
-      targetPort: 3000
-      nodePort: 30001
+    - port: 3000        # The standard port that OTHER containers inside the cluster use.
+      targetPort: 3000  # The physical port listening on the application container code.
+      nodePort: 30001   # The public entry port mapped to localhost on your actual computer!

@@ -1,41 +1,64 @@
+# API version and object kind define what 'language' we are speaking to Kubernetes.
 apiVersion: apps/v1
 kind: Deployment
+
+# Metadata stores the 'ID Card' for this resource (its name and tags).
 metadata:
   name: prometheus
+
+# 'spec' (Specification) describes the desired end-state you want to achieve.
 spec:
-  replicas: 1
+  # REPLICAS: The exact count of Pod instances you want running in Parallel.
+  replicas: 1 # Tells K8s to keep EXACTLY this many copies running at all times.
+  
+  # The 'selector' is the brain of the deployment. It tells this manager 
+  # to only look at and manage Pods that have the label 'app: prometheus'.
   selector:
     matchLabels:
       app: prometheus
+
+  # The 'template' is the literal blueprint used to stamp out new Pods.
   template:
     metadata:
       labels:
+        # Pods created using this template will get this label, matching the selector above.
         app: prometheus
     spec:
+      # Links the pod to explicit security permissions (RBAC).
       serviceAccountName: prometheus-sa
+      
+      # Definition of the software payload inside the Pod.
       containers:
       - name: prometheus
-        image: prom/prometheus:latest
-        args:
+        # The external image to download from Docker registry.
+        image: prom/prometheus:latest # The Docker image downloaded from Docker Hub.
+        args: # Commands injected into the container startup routine.
           - "--config.file=/etc/prometheus/prometheus.yml"
           - "--storage.tsdb.path=/prometheus"
+        # Network interface linking virtual Cluster ports to internal container ports.
         ports:
-        - containerPort: 9090
+        - containerPort: 9090 # Exposes the internal door inside the pod.
+        
+        # Maps logical shared 'volumes' below onto physical filesystem paths INSIDE the app.
         volumeMounts:
         - name: prometheus-config-volume
           mountPath: /etc/prometheus/
         - name: prometheus-storage-volume
           mountPath: /prometheus
+          
+        # Resource quotas to prevent the app from stealing CPU from other systems.
         resources:
           requests:
-            memory: "256Mi"
+            memory: "256Mi" # Minimum reserved resources
             cpu: "250m"
           limits:
-            memory: "512Mi"
+            memory: "512Mi" # Absolute maximum allowable usage before throttling
             cpu: "500m"
+            
+      # 'volumes' are the sources of data that will be mounted into containers above.
       volumes:
       - name: prometheus-config-volume
         configMap:
-          name: prometheus-config
+          name: prometheus-config # Pulls configuration files from the external ConfigMap.
       - name: prometheus-storage-volume
-        emptyDir: {} # Using emptyDir for simplicity, PVC recommended for prod
+        emptyDir: {} # Temporary ephemeral storage directory.

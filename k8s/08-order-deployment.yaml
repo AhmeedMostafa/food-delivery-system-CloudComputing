@@ -2,15 +2,22 @@
 # 2 replicas of order-service.
 # Apply: kubectl apply -f k8s/08-order-deployment.yaml
 
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: apps/v1
 kind: Deployment
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: order-service
+# SPEC (Specification) describes exactly how you want this item to behave.
 spec:
+  # REPLICAS: The exact count of Pod instances you want running in Parallel.
   replicas: 2
+  # SELECTOR: The 'lookup logic' that connects this manager to the actual Pods.
   selector:
     matchLabels:
       app: order-service
+  # TEMPLATE: The blueprint/cookie-cutter used to generate new Pod clones.
   template:
     metadata:
       labels:
@@ -18,21 +25,28 @@ spec:
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "3003"
+    # The pod specification, explaining the exact settings of the microservice containers.
     spec:
+      # CONTAINERS: Definition of the actual Docker workloads executing inside.
       containers:
         - name: order-service
+          # The external image to download from Docker registry.
           image: food-delivery/order-service:latest
           imagePullPolicy: IfNotPresent
+          # Network interface linking virtual Cluster ports to internal container ports.
           ports:
             - containerPort: 3003
+          # Bulk loads ALL variables defined inside a central ConfigMap or Secret.
           envFrom:
             - configMapRef:
                 name: food-config
             - secretRef:
                 name: food-secrets
+          # Dynamic Environment Variables loaded uniquely for this run.
           env:
             - name: PORT
               value: "3003"
+          # Compute quotas enforced to prevent CPU/Memory throttling and crashes.
           resources:
             requests:
               memory: "128Mi"

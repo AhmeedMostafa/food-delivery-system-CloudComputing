@@ -6,14 +6,20 @@
 # Access: minikube service frontend-service
 #      OR: http://$(minikube ip):30080
 
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: v1
 kind: Service
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: frontend-service
+# SPEC (Specification) describes exactly how you want this item to behave.
 spec:
   selector:
     app: frontend
+  # NODEPORT: Makes this service accessible via a browser outside the cluster network!
   type: NodePort
+  # Network interface linking virtual Cluster ports to internal container ports.
   ports:
     - protocol: TCP
       port: 80

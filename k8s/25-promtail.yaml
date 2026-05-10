@@ -4,23 +4,33 @@
 #
 # Apply: kubectl apply -f k8s/25-promtail.yaml
 ---
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: v1
 kind: ServiceAccount
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: promtail-sa
   namespace: default
 ---
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: promtail-role
 rules:
 - apiGroups: [""]
+  # Compute quotas enforced to prevent CPU/Memory throttling and crashes.
   resources: ["nodes", "nodes/proxy", "services", "endpoints", "pods"]
   verbs: ["get", "list", "watch"]
 ---
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: promtail-rb
 roleRef:
@@ -32,8 +42,11 @@ subjects:
   name: promtail-sa
   namespace: default
 ---
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: v1
 kind: ConfigMap
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: promtail-config
   namespace: default
@@ -76,21 +89,28 @@ data:
               - __meta_kubernetes_pod_container_name
             target_label: __path__
 ---
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: apps/v1
 kind: DaemonSet
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: promtail
   namespace: default
   labels:
     app: promtail
+# SPEC (Specification) describes exactly how you want this item to behave.
 spec:
   selector:
+    # Finds targets based on matching the 'Key: Value' tags.
     matchLabels:
       app: promtail
+  # TEMPLATE: The blueprint/cookie-cutter used to generate new Pod clones.
   template:
     metadata:
       labels:
         app: promtail
+    # The pod specification, explaining the exact settings of the microservice containers.
     spec:
       serviceAccountName: promtail-sa
       tolerations:
@@ -98,19 +118,24 @@ spec:
         effect: NoSchedule
       - key: node-role.kubernetes.io/control-plane
         effect: NoSchedule
+      # CONTAINERS: Definition of the actual Docker workloads executing inside.
       containers:
       - name: promtail
+        # The external image to download from Docker registry.
         image: grafana/promtail:2.9.4
         args:
         - -config.file=/etc/promtail/promtail.yaml
+        # Dynamic Environment Variables loaded uniquely for this run.
         env:
         - name: HOSTNAME
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
+        # Networking ports that are OPEN and listening on the application.
         ports:
         - containerPort: 9080
           name: http
+        # Physically maps a virtual storage volume onto a real folder path in code.
         volumeMounts:
         - name: promtail-config
           mountPath: /etc/promtail
@@ -120,6 +145,7 @@ spec:
         - name: varlibdockercontainers
           mountPath: /var/lib/docker/containers
           readOnly: true
+        # Compute quotas enforced to prevent CPU/Memory throttling and crashes.
         resources:
           requests:
             memory: "128Mi"
@@ -130,13 +156,16 @@ spec:
         securityContext:
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
+      # External volume sources (ConfigMaps, Disks) that can be consumed above.
       volumes:
       - name: promtail-config
         configMap:
           name: promtail-config
+      # Individual microservice Container configuration:
       - name: varlog
         hostPath:
           path: /var/log
+      # Individual microservice Container configuration:
       - name: varlibdockercontainers
         hostPath:
           path: /var/lib/docker/containers

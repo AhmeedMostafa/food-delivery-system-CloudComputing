@@ -2,26 +2,38 @@
 # 1 replica of the nginx-based frontend (SPA + API reverse proxy).
 # Apply: kubectl apply -f k8s/10-frontend-deployment.yaml
 
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: apps/v1
 kind: Deployment
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: frontend
+# SPEC (Specification) describes exactly how you want this item to behave.
 spec:
+  # REPLICAS: The exact count of Pod instances you want running in Parallel.
   replicas: 1
+  # SELECTOR: The 'lookup logic' that connects this manager to the actual Pods.
   selector:
     matchLabels:
       app: frontend
+  # TEMPLATE: The blueprint/cookie-cutter used to generate new Pod clones.
   template:
     metadata:
       labels:
         app: frontend
+    # The pod specification, explaining the exact settings of the microservice containers.
     spec:
+      # CONTAINERS: Definition of the actual Docker workloads executing inside.
       containers:
         - name: frontend
+          # The external image to download from Docker registry.
           image: food-delivery/frontend:latest
           imagePullPolicy: IfNotPresent
+          # Network interface linking virtual Cluster ports to internal container ports.
           ports:
             - containerPort: 80
+          # Compute quotas enforced to prevent CPU/Memory throttling and crashes.
           resources:
             requests:
               memory: "128Mi"

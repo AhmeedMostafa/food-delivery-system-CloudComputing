@@ -1,5 +1,8 @@
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: v1
 kind: ConfigMap
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: grafana-provisioning-datasource
   labels:
@@ -21,8 +24,11 @@ data:
       isDefault: false
       editable: true
 ---
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: v1
 kind: ConfigMap
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: grafana-dashboard-provider
   labels:
@@ -40,8 +46,11 @@ data:
       options:
         path: /etc/grafana/dashboards
 ---
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: v1
 kind: ConfigMap
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: grafana-food-delivery-dashboard
   labels:

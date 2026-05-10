@@ -129,6 +129,6 @@ ON CONFLICT DO NOTHING;
 -- Passwords are bcrypt hash of "driver123" (10 rounds)
 -- Generated with: node -e "import('bcryptjs').then(m => m.default.hash('driver123',10).then(h=>console.log(h)))"
 INSERT INTO user_svc.users (name, email, password, role) VALUES
-  ('Driver One', 'driver1@test.com', '$2a$10$q6NM4jrfOZC83aXner/4YuJpgm82mNKldmNAWVp0BWjBFFQbMyKmq', 'delivery_driver'),
-  ('Driver Two', 'driver2@test.com', '$2a$10$q6NM4jrfOZC83aXner/4YuJpgm82mNKldmNAWVp0BWjBFFQbMyKmq', 'delivery_driver')
+  ('Driver One', 'driver1@test.com', '$2a$10$VJ5v7UKk4qqZNZeMN3oHoOpFPv4VFEEYZk5K25tln.f64Oko8f7We', 'delivery_driver'),
+  ('Driver Two', 'driver2@test.com', '$2a$10$VJ5v7UKk4qqZNZeMN3oHoOpFPv4VFEEYZk5K25tln.f64Oko8f7We', 'delivery_driver')
 ON CONFLICT DO NOTHING;

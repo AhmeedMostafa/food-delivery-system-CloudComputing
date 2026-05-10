@@ -3,8 +3,11 @@
 #
 # Apply: kubectl apply -f k8s/24-loki.yaml
 ---
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: v1
 kind: ConfigMap
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: loki-config
   namespace: default
@@ -39,38 +42,51 @@ data:
     compactor:
       working_directory: /loki/compactor
 ---
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: apps/v1
 kind: StatefulSet
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: loki
   namespace: default
+# SPEC (Specification) describes exactly how you want this item to behave.
 spec:
   serviceName: loki
+  # REPLICAS: The exact count of Pod instances you want running in Parallel.
   replicas: 1
   selector:
+    # Finds targets based on matching the 'Key: Value' tags.
     matchLabels:
       app: loki
+  # TEMPLATE: The blueprint/cookie-cutter used to generate new Pod clones.
   template:
     metadata:
       labels:
         app: loki
+    # The pod specification, explaining the exact settings of the microservice containers.
     spec:
       securityContext:
         fsGroup: 10001
         runAsUser: 10001
+      # CONTAINERS: Definition of the actual Docker workloads executing inside.
       containers:
       - name: loki
+        # The external image to download from Docker registry.
         image: grafana/loki:2.9.4
         args:
         - -config.file=/etc/loki/loki.yaml
+        # Networking ports that are OPEN and listening on the application.
         ports:
         - containerPort: 3100
           name: http
+        # Physically maps a virtual storage volume onto a real folder path in code.
         volumeMounts:
         - name: loki-config
           mountPath: /etc/loki
         - name: loki-data
           mountPath: /loki
+        # Compute quotas enforced to prevent CPU/Memory throttling and crashes.
         resources:
           requests:
             memory: "256Mi"
@@ -90,29 +106,38 @@ spec:
             port: 3100
           initialDelaySeconds: 30
           periodSeconds: 20
+      # External volume sources (ConfigMaps, Disks) that can be consumed above.
       volumes:
       - name: loki-config
         configMap:
           name: loki-config
+  # DYNAMIC STORAGE: Requests physical Cloud hard drive dynamically attached here.
   volumeClaimTemplates:
   - metadata:
       name: loki-data
+    # The pod specification, explaining the exact settings of the microservice containers.
     spec:
       accessModes: ["ReadWriteOnce"]
+      # Compute quotas enforced to prevent CPU/Memory throttling and crashes.
       resources:
         requests:
           storage: 5Gi
 ---
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: v1
 kind: Service
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: loki
   namespace: default
   labels:
     app: loki
+# SPEC (Specification) describes exactly how you want this item to behave.
 spec:
   selector:
     app: loki
+  # Network interface linking virtual Cluster ports to internal container ports.
   ports:
   - port: 3100
     targetPort: 3100

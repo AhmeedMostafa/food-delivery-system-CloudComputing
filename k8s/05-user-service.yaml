@@ -2,15 +2,21 @@
 # ClusterIP service for user-service.
 # Apply: kubectl apply -f k8s/05-user-service.yaml
 
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: v1
 kind: Service
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: user-service
+# SPEC (Specification) describes exactly how you want this item to behave.
 spec:
   selector:
     app: user-service
+  # Network interface linking virtual Cluster ports to internal container ports.
   ports:
     - protocol: TCP
       port: 3001
       targetPort: 3001
+  # CLUSTERIP: Standard default service. Hidden from web, only visible internal to K8s!
   type: ClusterIP

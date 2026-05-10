@@ -5,16 +5,22 @@
 #
 # Apply: kubectl apply -f k8s/13-payment-service.yaml
 
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: v1
 kind: Service
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: payment-service
   labels:
     app: payment-service
+# SPEC (Specification) describes exactly how you want this item to behave.
 spec:
   type: ClusterIP
+  # SELECTOR: The 'lookup logic' that connects this manager to the actual Pods.
   selector:
     app: payment-service
+  # Network interface linking virtual Cluster ports to internal container ports.
   ports:
     - port: 3004
       targetPort: 3004

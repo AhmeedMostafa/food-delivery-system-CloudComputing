@@ -1,40 +1,56 @@
+# StatefulSets are for systems that store state (databases, queues).
+# Unlike Deployments, if this Pod restarts, it will ALWAYS re-attach to the EXACT same disk.
 apiVersion: apps/v1
 kind: StatefulSet
+
 metadata:
   name: rabbitmq
+
 spec:
-  serviceName: "rabbitmq-service"
+  serviceName: "rabbitmq-service" # Mandatory field that links this pod to its stable network ID.
+  # REPLICAS: The exact count of Pod instances you want running in Parallel.
   replicas: 1
+  
   selector:
     matchLabels:
       app: rabbitmq
+
   template:
     metadata:
       labels:
         app: rabbitmq
     spec:
+      # CONTAINERS: Definition of the actual Docker workloads executing inside.
       containers:
       - name: rabbitmq
+        # The external image to download from Docker registry.
         image: rabbitmq:3-management
+        # Network interface linking virtual Cluster ports to internal container ports.
         ports:
         - containerPort: 5672
-          name: amqp
+          name: amqp # Core messaging port for your services.
         - containerPort: 15672
-          name: management
+          name: management # Port for the beautiful UI dashboard.
+        
+        # environment injection using SECRETS (passwords stored outside plain text).
         env:
         - name: RABBITMQ_DEFAULT_USER
           valueFrom:
             secretKeyRef:
-              name: food-secrets
+              name: food-secrets # Reference the centralized safe.
               key: RABBITMQ_DEFAULT_USER
         - name: RABBITMQ_DEFAULT_PASS
           valueFrom:
             secretKeyRef:
               name: food-secrets
               key: RABBITMQ_DEFAULT_PASS
+              
+        # Points the virtual mount path on the internal container disk to the PVC allocated below.
         volumeMounts:
         - name: rabbitmq-data
           mountPath: /var/lib/rabbitmq
+          
+        # Compute quotas enforced to prevent CPU/Memory throttling and crashes.
         resources:
           requests:
             memory: "256Mi"
@@ -42,11 +58,16 @@ spec:
           limits:
             memory: "512Mi"
             cpu: "500m"
+
+  # CRITICAL SECTION: The 'Template' for claiming real physical hard drive space.
+  # K8s automatically reads this and buys/mounts 1 GB of cloud storage specifically tied to this name.
   volumeClaimTemplates:
   - metadata:
       name: rabbitmq-data
     spec:
+      # ReadWriteOnce allows a SINGLE machine node full control of this drive.
       accessModes: [ "ReadWriteOnce" ]
+      # Compute quotas enforced to prevent CPU/Memory throttling and crashes.
       resources:
         requests:
-          storage: 1Gi
+          storage: 1Gi # Request allocation of 1 Gigabyte of physical drive space.

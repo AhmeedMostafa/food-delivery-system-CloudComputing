@@ -1,26 +1,38 @@
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: apps/v1
 kind: StatefulSet
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: grafana
+# SPEC (Specification) describes exactly how you want this item to behave.
 spec:
   serviceName: "grafana-service"
+  # REPLICAS: The exact count of Pod instances you want running in Parallel.
   replicas: 1
   selector:
+    # Finds targets based on matching the 'Key: Value' tags.
     matchLabels:
       app: grafana
+  # TEMPLATE: The blueprint/cookie-cutter used to generate new Pod clones.
   template:
     metadata:
       labels:
         app: grafana
+    # The pod specification, explaining the exact settings of the microservice containers.
     spec:
       securityContext:
         fsGroup: 472
         runAsUser: 472
+      # CONTAINERS: Definition of the actual Docker workloads executing inside.
       containers:
       - name: grafana
+        # The external image to download from Docker registry.
         image: grafana/grafana:latest
+        # Network interface linking virtual Cluster ports to internal container ports.
         ports:
         - containerPort: 3000
+        # Dynamic Environment Variables loaded uniquely for this run.
         env:
         - name: GF_SECURITY_ADMIN_USER
           value: admin
@@ -28,6 +40,7 @@ spec:
           value: admin
         - name: GF_PATHS_PROVISIONING
           value: /etc/grafana/provisioning
+        # Compute quotas enforced to prevent CPU/Memory throttling and crashes.
         resources:
           requests:
             memory: "256Mi"
@@ -35,6 +48,7 @@ spec:
           limits:
             memory: "512Mi"
             cpu: "500m"
+        # Physically maps a virtual storage volume onto a real folder path in code.
         volumeMounts:
         - name: grafana-data
           mountPath: /var/lib/grafana
@@ -44,21 +58,27 @@ spec:
           mountPath: /etc/grafana/provisioning/dashboards
         - name: grafana-food-delivery-dashboard
           mountPath: /etc/grafana/dashboards
+      # External volume sources (ConfigMaps, Disks) that can be consumed above.
       volumes:
       - name: grafana-provisioning-datasource
         configMap:
           name: grafana-provisioning-datasource
+      # Individual microservice Container configuration:
       - name: grafana-dashboard-provider
         configMap:
           name: grafana-dashboard-provider
+      # Individual microservice Container configuration:
       - name: grafana-food-delivery-dashboard
         configMap:
           name: grafana-food-delivery-dashboard
+  # DYNAMIC STORAGE: Requests physical Cloud hard drive dynamically attached here.
   volumeClaimTemplates:
   - metadata:
       name: grafana-data
+    # The pod specification, explaining the exact settings of the microservice containers.
     spec:
       accessModes: [ "ReadWriteOnce" ]
+      # Compute quotas enforced to prevent CPU/Memory throttling and crashes.
       resources:
         requests:
           storage: 1Gi

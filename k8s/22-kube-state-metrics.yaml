@@ -1,13 +1,20 @@
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: apps/v1
 kind: Deployment
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: kube-state-metrics
   namespace: default
+# SPEC (Specification) describes exactly how you want this item to behave.
 spec:
+  # REPLICAS: The exact count of Pod instances you want running in Parallel.
   replicas: 1
+  # SELECTOR: The 'lookup logic' that connects this manager to the actual Pods.
   selector:
     matchLabels:
       app: kube-state-metrics
+  # TEMPLATE: The blueprint/cookie-cutter used to generate new Pod clones.
   template:
     metadata:
       labels:
@@ -15,25 +22,35 @@ spec:
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8080"
+    # The pod specification, explaining the exact settings of the microservice containers.
     spec:
       serviceAccountName: prometheus-sa
+      # CONTAINERS: Definition of the actual Docker workloads executing inside.
       containers:
       - name: kube-state-metrics
+        # The external image to download from Docker registry.
         image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.10.1
+        # Network interface linking virtual Cluster ports to internal container ports.
         ports:
         - containerPort: 8080
 ---
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: v1
 kind: Service
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: kube-state-metrics
   namespace: default
   labels:
     app: kube-state-metrics
+# SPEC (Specification) describes exactly how you want this item to behave.
 spec:
+  # Network interface linking virtual Cluster ports to internal container ports.
   ports:
   - port: 8080
     targetPort: 8080
     name: http-metrics
+  # SELECTOR: The 'lookup logic' that connects this manager to the actual Pods.
   selector:
     app: kube-state-metrics

@@ -3,15 +3,21 @@
 # Services connect using hostname 'postgres-service' (matching DB_HOST in food-config).
 # Apply: kubectl apply -f k8s/03-postgres-service.yaml
 
+# ==========================================
+# API Version and Kind define what type of Kubernetes resource this is.
 apiVersion: v1
 kind: Service
+# Metadata stores identification info (name and labels) used for internal lookup.
 metadata:
   name: postgres-service
+# SPEC (Specification) describes exactly how you want this item to behave.
 spec:
   selector:
     app: postgres
+  # Network interface linking virtual Cluster ports to internal container ports.
   ports:
     - protocol: TCP
       port: 5432
       targetPort: 5432
+  # CLUSTERIP: Standard default service. Hidden from web, only visible internal to K8s!
   type: ClusterIP
