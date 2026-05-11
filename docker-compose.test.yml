@@ -28,7 +28,10 @@ services:
       - food_net_test
 
   user-service:
-    build: ./services/user-service
+    build:
+      context: ./services/user-service
+      args:
+        - NODE_ENV=development
     command: npm test
     environment:
       PORT: 4001
@@ -48,7 +51,10 @@ services:
       - food_net_test
 
   restaurant-service:
-    build: ./services/restaurant-service
+    build:
+      context: ./services/restaurant-service
+      args:
+        - NODE_ENV=development
     command: npm test
     environment:
       PORT: 4002
@@ -67,7 +73,10 @@ services:
       - food_net_test
 
   order-service:
-    build: ./services/order-service
+    build:
+      context: ./services/order-service
+      args:
+        - NODE_ENV=development
     command: npm test
     environment:
       PORT: 4003
@@ -89,7 +98,10 @@ services:
       - food_net_test
 
   payment-service:
-    build: ./services/payment-service
+    build:
+      context: ./services/payment-service
+      args:
+        - NODE_ENV=development
     command: npm test
     environment:
       PORT: 4004
@@ -107,25 +119,6 @@ services:
     networks:
       - food_net_test
 
-  frontend:
-    build:
-      context: ./frontend
-      target: builder
-    command: npm run dev -- --host 0.0.0.0 --port 4173
-    environment:
-      VITE_API_BASE_USER: http://localhost:4001
-      VITE_API_BASE_RESTAURANT: http://localhost:4002
-      VITE_API_BASE_ORDER: http://localhost:4003
-      VITE_API_BASE_PAYMENT: http://localhost:4004
-    ports:
-      - '4173:4173'
-    depends_on:
-      - user-service
-      - restaurant-service
-      - order-service
-      - payment-service
-    networks:
-      - food_net_test
 
 volumes:
   pgdata_test:

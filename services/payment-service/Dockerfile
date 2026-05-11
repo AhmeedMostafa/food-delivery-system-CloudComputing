@@ -12,7 +12,10 @@ ENV NODE_ENV=production
 ENV PATH /app/node_modules/.bin:$PATH
 COPY --from=deps /app/node_modules ./node_modules
 COPY src ./src
+COPY tests ./tests
+COPY jest.config.js ./
 COPY package.json ./
 EXPOSE 3004
+RUN chown -R node:node /app
 USER node
 CMD ["node", "src/index.js"]
