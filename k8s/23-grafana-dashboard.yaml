@@ -124,7 +124,7 @@ data:
           "title": "Total Cluster Memory Usage",
           "type": "gauge",
           "gridPos": {"h": 6, "w": 6, "x": 6, "y": 12},
-          "targets": [{"expr": "sum(container_memory_working_set_bytes{id='/'})", "legendFormat": "Memory", "refId": "A"}],
+          "targets": [{"expr": "sum(container_memory_working_set_bytes{namespace='default'})", "legendFormat": "Memory", "refId": "A"}],
           "fieldConfig": {"defaults": {"unit": "bytes", "thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "yellow", "value": 1073741824}, {"color": "red", "value": 2147483648}]}}}
         },
         {
